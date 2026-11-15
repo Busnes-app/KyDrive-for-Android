@@ -1,6 +1,6 @@
 # KyDrive for Android: design
 
-Status: draft for owner review, 2026-11-15. Nothing is built yet.
+Status: approved by the owner, 2026-11-15 (decisions in section 8).
 
 KyDrive for Android is a native client for a self-hosted KyDrive server. People use it to
 browse, open, share and back up their files from a phone. It is not a sync client: the
@@ -48,12 +48,10 @@ Revocation is `DELETE /api/devices/{id}?wipe=`. After that the token answers
 - There is no cross-device (QR) path. A device-code design (RFC 8628) was considered and
   dropped (`docs/desktop-sync-options.md:644`).
 
-### Proposal: two ways in, one credential
+### Proposal: link by QR code
 
-Both paths end with the same `kyd_` device token. That token is listed and revoked
-under the web app's device settings, next to the computers.
-
-**A. Scan a QR code from the web app (primary).**
+The phone gets the same kind of `kyd_` device token as a computer. That token is listed
+and revoked under the web app's device settings, next to the computers.
 
 1. On a computer, the user signs in to KyDrive. They open Settings → Devices → Link a
    phone and pass step-up.
@@ -76,22 +74,15 @@ first. Three things limit the damage:
 - The web page shows a device the owner doesn't recognise.
 - Step-up is required to show the code.
 
-Section 7, question 3, asks whether that is enough, or whether you want a confirm-a-number
-step.
+The owner accepted this risk; there is no confirm-a-number step.
 
-**B. Sign in on this phone (for people with no computer to hand).**
-
-1. The app opens `/link` in a Custom Tab, with `platform=android` and
-   `redirect=org.kysecurity.drive:/link`. This is a private-use URI scheme (RFC 8252
-   §7.1). PKCE stops another app that claims the same scheme from using a stolen code.
-2. A loopback redirect would need the server change anyway. It also depends on Chrome
-   allowing a top-level navigation from https to `http://127.0.0.1`, which is unproven
-   with Chrome's Local Network Access rules. Use the scheme.
+There is no sign-in-on-the-phone path. Linking needs the web app open on a second screen
+(owner decision).
 
 **Server PR (separate, `kydrive-server`):**
 
-- Add `android` and `ios` to `validPlatform`. For those platforms only, accept the exact
-  redirect `org.kysecurity.drive:/link`.
+- Add `android` and `ios` to `validPlatform`, for QR pairing only. The loopback approve
+  flow stays computer-only.
 - Add the QR pairing endpoint and the "Link a phone" page.
 - Change the copy from "Computers" to "Devices", with a phone icon for mobile platforms.
 - Every new Store method gets classified in `devices_access_test.go`.
@@ -121,7 +112,7 @@ step.
 
 | Threat | Defence |
 |---|---|
-| Network attacker | TLS only. Cleartext is off and only system CAs are trusted. The TLS floor (RSA ≥ 2048, EC ≥ 256, SHA-2) is the same as KyPost's `StrongTls` and the desktop's FIPS policy. Redirects are refused. The server is not pinned, because self-hosted certificates rotate (the desktop doesn't pin either). |
+| Network attacker | TLS only. Cleartext is off and only system CAs are trusted; there is no user-CA option (owner decision). The TLS floor (RSA ≥ 2048, EC ≥ 256, SHA-2) is the same as KyPost's `StrongTls` and the desktop's FIPS policy. Redirects are refused. The server is not pinned, because self-hosted certificates rotate (the desktop doesn't pin either). |
 | Lost or stolen phone, unlocked | App lock (PIN or strong biometric) after a 30 s grace period, using KyPost's `LockedActivity` and `LockoutPolicy`. The user revokes the phone from the web, and the next request wipes it. |
 | Lost phone, attacker reads storage (rooted, forensics) | The token and the cache are encrypted under Keystore keys that never leave the device. Unlinking deletes the keys first (crypto-shred), then the files. |
 | Another app on the phone | Exported components are limited to the launcher activity, the share target, the camera-backup settings entry, and the DocumentsProvider (`MANAGE_DOCUMENTS`, so only the system picker binds). A build gate checks the merged manifest against that allowlist, as KyPost's does. |
@@ -329,15 +320,11 @@ Settings, which has these sections:
 - A Play Store flavour, Google Play Services, analytics, crash SDKs.
 - More than one account or server per app.
 
-## 8. Questions for the owner
+## 8. Owner decisions (2026-11-15)
 
-1. **Repo:** `Busnes-app/KyDrive-for-Android`, public, MIT?
-2. **Linking:** QR from the web (A) plus sign-in on the phone (B), both in one server PR?
-   Or QR only?
-3. **Is the QR code safe enough?** Options:
-   - single use, 120 s, step-up to show it, and the web page shows "Linked: `<name>`"
-     with Revoke; or
-   - also a confirm step, where the phone shows a 6-digit number that the user types or
-     approves on the web page before the token works.
-4. **User-installed CAs:** homelab servers often sit behind a private CA. Default off (the
-   brief). Do you want a per-server opt-in in Settings, behind a warning?
+1. Repo: `Busnes-app/KyDrive-for-Android`, public, MIT.
+2. Linking: by QR code only. There is no sign-in on the phone.
+3. QR code: single use, valid 120 s, step-up to show it, and the web page shows
+   "Linked: `<name>`" with Revoke. There is no confirm-a-number step.
+4. User-installed CAs: never trusted, and there is no option to trust them. Private-CA
+   servers need a publicly trusted certificate.
