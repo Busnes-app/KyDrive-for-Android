@@ -25,11 +25,21 @@ tap() {
   [ -n "$bounds" ] || { echo "no node named '$1' on screen" >&2; exit 1; }
   read -r x1 y1 x2 y2 <<< "$bounds"
   "$adb" -s "$serial" shell input tap $(((x1 + x2) / 2)) $(((y1 + y2) / 2))
-  sleep 1
 }
 
+# Saves screen $1 once text containing $2, unique to that screen, is showing.
 shot() {
-  "$adb" -s "$serial" exec-out screencap -p > "$out/$form-$mode-$1.png"
+  for _ in $(seq 30); do
+    "$adb" -s "$serial" shell uiautomator dump /sdcard/ui.xml > /dev/null
+    if "$adb" -s "$serial" exec-out cat /sdcard/ui.xml | grep -qF "text=\"$2"; then
+      sleep 1 # let the transition finish drawing
+      "$adb" -s "$serial" exec-out screencap -p > "$out/$form-$mode-$1.png"
+      return
+    fi
+    sleep 1
+  done
+  echo "screen $1 never showed '$2' ($form, $mode)" >&2
+  exit 1
 }
 
 for form in phone tablet; do
@@ -72,11 +82,11 @@ for form in phone tablet; do
     "$adb" -s "$serial" shell am force-stop org.kysecurity.drive
     "$adb" -s "$serial" shell am start -W -n org.kysecurity.drive/.MainActivity > /dev/null
     sleep 2
-    shot files
+    shot files "Your files will appear"
     tap Shared
-    shot shared
+    shot shared "Workspaces and files shared"
     tap Settings
-    shot settings
+    shot settings "Appearance"
   done
 
   "$adb" -s "$serial" emu kill > /dev/null || true
