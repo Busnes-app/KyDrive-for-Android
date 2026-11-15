@@ -1,0 +1,8 @@
+# Source stays text, so grep sweeps (including the security ones) never skip a file.
+*.kt   text diff=kotlin
+*.kts  text
+*.xml  text
+*.pro  text
+*.md   text
+*.ttf  binary
+*.bat  text eol=crlf

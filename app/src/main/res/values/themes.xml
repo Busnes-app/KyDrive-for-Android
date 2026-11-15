@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.KyDrive" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorOnPrimary">@color/on_accent</item>
+        <item name="colorPrimaryContainer">@color/accent_soft</item>
+        <item name="colorOnPrimaryContainer">@color/ink_strong</item>
+        <item name="colorSecondaryContainer">@color/accent_soft</item>
+        <item name="colorOnSecondaryContainer">@color/ink_strong</item>
+        <item name="android:colorBackground">@color/bg</item>
+        <item name="colorSurface">@color/bg</item>
+        <item name="colorSurfaceContainer">@color/panel</item>
+        <item name="colorSurfaceContainerLow">@color/panel</item>
+        <item name="colorOnSurface">@color/ink_strong</item>
+        <item name="colorOnSurfaceVariant">@color/ink</item>
+        <item name="colorOutline">@color/line</item>
+        <item name="colorOutlineVariant">@color/line</item>
+        <item name="colorError">@color/danger</item>
+        <item name="fontFamily">@font/space_grotesk</item>
+        <item name="android:fontFamily">@font/space_grotesk</item>
+        <item name="android:windowLightStatusBar">@bool/light_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/light_bars</item>
+    </style>
+
+    <style name="KyDrive.SectionTitle" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:textColor">@color/accent</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+</resources>

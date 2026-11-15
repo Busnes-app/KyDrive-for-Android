@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Busnes Light, from ky-ui src/themes.js (via KyPost AppTheme.kt). Keep identical. -->
+<resources>
+    <color name="bg">#f8f6f0</color>
+    <color name="panel">#ffffff</color>
+    <color name="ink">#566461</color>
+    <color name="ink_strong">#182326</color>
+    <color name="accent">#bf3f18</color>
+    <color name="on_accent">#ffffff</color>
+    <color name="accent_soft">#fbf0ec</color>
+    <color name="line">#cccfcf</color>
+    <color name="danger">#a8174e</color>
+    <color name="icon_bg">#182326</color>
+</resources>

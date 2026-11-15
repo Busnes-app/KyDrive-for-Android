@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Explicit, not the targetSdk default, so no dependency's manifest can flip it. System CAs
+     only: user-installed CAs are never trusted (owner decision, docs/DESIGN.md section 8). -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
