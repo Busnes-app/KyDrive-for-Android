@@ -143,7 +143,9 @@ change the server must make goes in a separate `kydrive-server` PR.
 - A new or bumped dependency means regenerating `gradle/verification-metadata.xml` with
   `--write-verification-metadata sha256` in its own commit. CI fails if it changes.
 - `scripts/screenshots.sh` captures every screen into `docs/screenshots/`, light and dark,
-  phone and tablet, on its own AVDs. Re-run it when a screen changes.
+  phone and tablet, on its own AVDs. The `screenshots` workflow runs it on every PR that
+  touches `app/src/main` and uploads the PNGs as an artifact; attach them to the PR. Add
+  each new screen to the script.
 
 ## Child DOX Index
 - `docs/` — design and owner decisions (`DESIGN.md`).
