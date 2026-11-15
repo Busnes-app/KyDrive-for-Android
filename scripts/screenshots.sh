@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Captures every screen in light and dark, on a phone and a tablet, into docs/screenshots/.
 # Needs ANDROID_HOME and the API 36 google_apis x86_64 image. Creates its own AVDs
-# (kydrive-phone, kydrive-tablet) and uses its own emulator ports, so it leaves other
-# emulators alone. Run from the repo root.
+# (kydrive-phone, kydrive-tablet) on free console ports, so it leaves other emulators
+# alone. Run from the repo root.
 set -euo pipefail
 sdk=${ANDROID_HOME:?set ANDROID_HOME}
 adb=$sdk/platform-tools/adb
@@ -31,9 +31,15 @@ shot() {
 
 for form in phone tablet; do
   case $form in
-    phone) device=pixel_8; port=5640 ;;
-    tablet) device=pixel_tablet; port=5642 ;;
+    phone) device=pixel_8 ;;
+    tablet) device=pixel_tablet ;;
   esac
+  # adb only discovers emulators on even console ports 5554-5584.
+  port=
+  for p in $(seq 5584 -2 5554); do
+    if ! ss -Hltn "sport = :$p or sport = :$((p + 1))" | grep -q .; then port=$p; break; fi
+  done
+  [ -n "$port" ] || { echo "no free emulator port" >&2; exit 1; }
   avd=kydrive-$form
   serial=emulator-$port
   if ! "$sdk/emulator/emulator" -list-avds | grep -qx "$avd"; then
@@ -43,8 +49,13 @@ for form in phone tablet; do
     -no-snapshot -gpu swiftshader_indirect > "/tmp/$avd.log" 2>&1 &
   emu=$!
   trap 'kill $emu 2>/dev/null || true' EXIT
-  "$adb" -s "$serial" wait-for-device
-  until [ "$("$adb" -s "$serial" shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 2; done
+  timeout 300 "$adb" -s "$serial" wait-for-device
+  for _ in $(seq 150); do
+    [ "$("$adb" -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break
+    kill -0 $emu || { echo "emulator exited, see /tmp/$avd.log" >&2; exit 1; }
+    sleep 2
+  done
+  [ "$("$adb" -s "$serial" shell getprop sys.boot_completed | tr -d '\r')" = 1 ] || { echo "boot timed out" >&2; exit 1; }
   "$adb" -s "$serial" shell settings put global window_animation_scale 0
   "$adb" -s "$serial" shell settings put global transition_animation_scale 0
   "$adb" -s "$serial" shell settings put global animator_duration_scale 0
