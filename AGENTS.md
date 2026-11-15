@@ -134,6 +134,20 @@ change the server must make goes in a separate `kydrive-server` PR.
 - Do not tag or cut releases.
 
 ## Verification
+- `./gradlew testDebugUnitTest lintDebug checkExportedComponentsDebug assembleRelease`
+  is what CI runs. `SourceRulesTest` checks the rules above that a reviewer would
+  otherwise have to remember: no logging, every activity extends `SecureActivity`, the
+  backup and TLS settings in the manifest and `res/xml`.
+- `checkExportedComponents<Variant>` fails unless the merged manifest exports exactly
+  `allowedExportedComponents` in `app/build.gradle.kts`.
+- A new or bumped dependency means regenerating `gradle/verification-metadata.xml` with
+  `--write-verification-metadata sha256` in its own commit. CI fails if it changes.
+  Generate against an empty Gradle home (`-g <new dir>`) and the full CI task list: a warm
+  cache skips the BOMs and parent POMs that a CI runner downloads.
+- `scripts/screenshots.sh` captures every screen into `docs/screenshots/`, light and dark,
+  phone and tablet, on its own AVDs. The `screenshots` workflow runs it on every PR that
+  touches `app/src/main` and uploads the PNGs as an artifact; attach them to the PR. Add
+  each new screen to the script.
 
 ## Child DOX Index
 - `docs/` — design and owner decisions (`DESIGN.md`).

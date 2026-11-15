@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon silhouette: the folder with the arrow cut out. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="1254" android:viewportHeight="1254">
+    <group android:translateY="27">
+        <path android:fillColor="#ffffff" android:fillType="evenOdd"
+            android:pathData="M300,395 a55,55 0 0,1 55,-55 h185 a55,55 0 0,1 45,24 l45,66 h260 a55,55 0 0,1 55,55 v365 a55,55 0 0,1 -55,55 h-535 a55,55 0 0,1 -55,-55 z M627,585 l135,140 h-80 v120 h-110 v-120 h-80 z" />
+    </group>
+</vector>

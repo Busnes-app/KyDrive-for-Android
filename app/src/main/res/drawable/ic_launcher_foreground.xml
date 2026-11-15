@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The KyDrive icon (kydrive-desktop assets/kydrive-icon.svg) without its tile, centred for
+     the adaptive-icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="1254" android:viewportHeight="1254">
+    <group android:translateY="27">
+        <path android:fillColor="#f2efe8"
+            android:pathData="M300,395 a55,55 0 0,1 55,-55 h185 a55,55 0 0,1 45,24 l45,66 h260 a55,55 0 0,1 55,55 v365 a55,55 0 0,1 -55,55 h-535 a55,55 0 0,1 -55,-55 z" />
+        <path android:fillColor="#182326" android:pathData="M300,500h654v34h-654z" />
+        <path android:fillColor="#e2562a" android:strokeColor="#e2562a" android:strokeWidth="24"
+            android:strokeLineJoin="round"
+            android:pathData="M627,585 l135,140 h-80 v120 h-110 v-120 h-80 z" />
+    </group>
+</vector>
