@@ -49,13 +49,15 @@ for form in phone tablet; do
     -no-snapshot -gpu swiftshader_indirect > "/tmp/$avd.log" 2>&1 &
   emu=$!
   trap 'kill $emu 2>/dev/null || true' EXIT
-  timeout 300 "$adb" -s "$serial" wait-for-device
+  booted() { [ "$("$adb" -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; }
+  fail() { echo "$1; last emulator output:" >&2; tail -40 "/tmp/$avd.log" >&2; exit 1; }
+  timeout 300 "$adb" -s "$serial" wait-for-device || fail "adb never saw $serial"
   for _ in $(seq 150); do
-    [ "$("$adb" -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && break
-    kill -0 $emu || { echo "emulator exited, see /tmp/$avd.log" >&2; exit 1; }
+    booted && break
+    kill -0 $emu || fail "emulator exited"
     sleep 2
   done
-  [ "$("$adb" -s "$serial" shell getprop sys.boot_completed | tr -d '\r')" = 1 ] || { echo "boot timed out" >&2; exit 1; }
+  booted || fail "boot timed out"
   "$adb" -s "$serial" shell settings put global window_animation_scale 0
   "$adb" -s "$serial" shell settings put global transition_animation_scale 0
   "$adb" -s "$serial" shell settings put global animator_duration_scale 0
