@@ -6,6 +6,9 @@
 set -euo pipefail
 sdk=${ANDROID_HOME:?set ANDROID_HOME}
 adb=$sdk/platform-tools/adb
+# avdmanager and the emulator disagree on the default AVD directory on some hosts.
+export ANDROID_AVD_HOME=${ANDROID_AVD_HOME:-$HOME/.android/avd}
+mkdir -p "$ANDROID_AVD_HOME"
 image="system-images;android-36;google_apis;x86_64"
 out=docs/screenshots
 mkdir -p "$out"
@@ -43,7 +46,7 @@ for form in phone tablet; do
   avd=kydrive-$form
   serial=emulator-$port
   if ! "$sdk/emulator/emulator" -list-avds | grep -qx "$avd"; then
-    echo no | "$sdk/cmdline-tools/latest/bin/avdmanager" -s create avd -n "$avd" -k "$image" -d "$device"
+    echo no | "$sdk/cmdline-tools/latest/bin/avdmanager" create avd -n "$avd" -k "$image" -d "$device"
   fi
   "$sdk/emulator/emulator" -avd "$avd" -port "$port" -no-window -no-audio -no-boot-anim \
     -no-snapshot -gpu swiftshader_indirect > "/tmp/$avd.log" 2>&1 &
