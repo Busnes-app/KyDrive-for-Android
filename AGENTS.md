@@ -162,7 +162,7 @@ change the server must make goes in a separate `kydrive-server` PR.
   phone and tablet, on its own AVDs. With `KYDRIVE_SERVER_BIN` set it starts a seeded
   throwaway server (`scripts/screenshot-server.sh`, behind socat TLS), links each emulator
   through the `screenshot_link` extra and captures the linked screens too. The
-  `screenshots` workflow does that on every PR that touches `app/src/main` and uploads the
+  `screenshots` workflow does that on every non-draft PR that touches `app/src/main` and uploads the
   PNGs as an artifact; attach them to the PR. Add each new screen to the script.
 
 ## Child DOX Index
