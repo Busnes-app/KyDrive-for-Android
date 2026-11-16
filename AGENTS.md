@@ -100,7 +100,9 @@ the wire layer stays portable. The approved design and its owner decisions are
 `docs/DESIGN.md`.
 
 ## Ownership
-Root owns the product contract, the build, CI and `docs/DESIGN.md`. The server's
+Root owns the product contract, the build, CI and the policy documents beside this file:
+`README.md`, `SECURITY.md`, `CONTRIBUTING.md` and `CHANGELOG.md`. `docs/` owns the user manual
+(`docs/src`, `book.toml`) and the approved design (`docs/DESIGN.md`). The server's
 `internal/api` and `internal/drive` own every wire shape; this repo never invents one. A
 change the server must make goes in a separate `kydrive-server` PR.
 
@@ -127,6 +129,16 @@ change the server must make goes in a separate `kydrive-server` PR.
   The one exception is the throwaway CA `scripts/screenshot-server.sh` makes per run,
   trusted through `debug-overrides` only in the debuggable APK built with
   `-PscreenshotCa`. `src/main` and every other build trust system CAs only.
+- Every HTTPS connection carries the certificate floor (`core/Tls.kt`, `DeviceTls.kt`): RSA
+  keys of at least 2048 bits, elliptic-curve keys of at least 256, and a SHA-2 or stronger
+  signature, over the chain `X509TrustManagerExtensions` validated — leaf, intermediates and
+  the trust anchor. A key or signature algorithm it cannot measure is refused. A self-signed
+  final trust anchor's own self-signature is not measured: nothing verifies it, and system roots still
+  carry SHA-1 ones. The floor runs inside the handshake, so a refused chain never carries a
+  request byte, and it only narrows the platform's decision: trust anchors, the network
+  security config and hostname verification stay the platform's. `driveApi` is the only place
+  the app builds an `Api`, so no connection can leave without the floor; an `Api` on an HTTPS
+  origin built without one fails before it connects.
 - `FLAG_SECURE` on every screen, except debug builds with `-PallowScreenshots=true`.
   `KeyboardPrivacy` on every text field. No `android.util.Log` in main sources.
   `allowBackup=false`, and the data-extraction rules exclude every domain.
@@ -142,6 +154,9 @@ change the server must make goes in a separate `kydrive-server` PR.
   ship it. No analytics and no crash SDK.
 - The wire layer is `org.kysecurity.drive.core`: no Android imports, so iOS can mirror it.
   It uses the platform's `HttpURLConnection` and `org.json`.
+- User documentation is the mdBook manual under `docs/`, in the Ky suite's documentation
+  format (owner, 2026-11-16); `docs/AGENTS.md` is its contract. A change that alters what a
+  user sees or does updates the manual in the same PR.
 - The look and the Android conventions follow `KyPost-for-Android`: Busnes palettes, the
   adaptive shell with the rail on the right, Activity Embedding and app lock. The
   benchmark is Google Drive.
@@ -160,6 +175,13 @@ change the server must make goes in a separate `kydrive-server` PR.
   otherwise have to remember: no logging, every activity extends `SecureActivity` (zxing's
   scanner calls `secureWindow` instead), `core` has no Android imports, and the backup and
   TLS settings in the manifest and `res/xml`.
+- `CertFloorTest` and `TlsFloorTest` cover the floor on the JVM: the policy over each fixture
+  chain, and a real HTTPS connection where a refused chain fails inside the handshake and the
+  server records no request line. `CertFloorDeviceTest` proves the same on a device through
+  `driveApi` and the platform's own trust decision; `ci-tls-floor` runs it on API 36 with
+  `-PscreenshotCa=app/src/test/resources/tls/ca.pem` and fails if the tests skipped.
+  `scripts/tls-fixtures.sh` regenerates the throwaway certificates in `app/src/test/resources/tls`,
+  which the device tests read as androidTest assets. No fixture may reach `src/main`.
 - `RealServerTest` runs the wire layer against a real `kydrive-server` when
   `KYDRIVE_SERVER_BIN` names a built binary, and is skipped otherwise. The `ci-real-server`
   job builds the pinned commit in `.github/workflows/ci.yml` and fails if the test skipped.
@@ -179,6 +201,9 @@ change the server must make goes in a separate `kydrive-server` PR.
 - Advisory floors for build tools are the `build-tool-floors` bundle in
   `gradle/libs.versions.toml`. They apply to the root buildscript classpath and to
   `androidLintTool`, which lint resolves on its own.
+- `mdbook build docs` builds the manual and `python3 scripts/check-docs.py` checks every
+  internal link and anchor in the built book. The `documentation` workflow runs both on each
+  non-draft PR that touches `docs/`, a root Markdown file or the checker itself.
 - `scripts/screenshots.sh` captures every screen into `docs/screenshots/`, light and dark,
   phone and tablet, on its own AVDs. With `KYDRIVE_SERVER_BIN` set it starts a seeded
   throwaway server (`scripts/screenshot-server.sh`, behind socat TLS), links each emulator
@@ -187,5 +212,6 @@ change the server must make goes in a separate `kydrive-server` PR.
   PNGs as an artifact; attach them to the PR. Add each new screen to the script.
 
 ## Child DOX Index
-- `app/src/androidTest/` — device-only lock lifecycle regressions.
-- `docs/` — design and owner decisions (`DESIGN.md`).
+- `app/src/androidTest/` — device-only regressions: lock lifecycle and the certificate floor.
+- `docs/` — the mdBook user manual (`src/`, `book.toml`) and the approved design and owner
+  decisions (`DESIGN.md`).

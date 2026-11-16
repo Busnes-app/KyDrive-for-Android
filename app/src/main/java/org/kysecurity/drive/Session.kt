@@ -5,7 +5,6 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.security.keystore.StrongBoxUnavailableException
 import org.json.JSONObject
-import org.kysecurity.drive.core.Api
 import org.kysecurity.drive.lock.Lock
 import java.io.File
 import java.security.KeyStore
@@ -22,7 +21,7 @@ data class Session(val origin: String, val token: String, val userId: String, va
     val host: String get() = origin.removePrefix("https://")
 
     /** A key the session names but the Keystore lost signs nothing, and the server refuses the token. */
-    fun api() = Api(origin, token, keyAlias.takeIf { it.isNotEmpty() }?.let { DeviceSigningKey.load(it) })
+    fun api() = driveApi(origin, token, keyAlias.takeIf { it.isNotEmpty() }?.let { DeviceSigningKey.load(it) })
 }
 
 /**

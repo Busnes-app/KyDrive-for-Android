@@ -8,6 +8,7 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
+import javax.net.ssl.HttpsURLConnection
 
 /** A non-2xx answer. [code] is the server's `error` text, never shown verbatim to the user. */
 class ApiError(val status: Int, val code: String, val wipe: Boolean) : IOException("KyDrive answered $status") {
@@ -25,8 +26,16 @@ data class Account(val userId: String, val user: String)
  * The KyDrive HTTP API. Blocking; call it off the main thread. [origin] comes from a parsed
  * [LinkUri], so it is a bare HTTPS origin. Redirects are refused rather than followed. With a
  * [key], every request the [token] makes is signed ([RequestSigning]).
+ *
+ * [tls] settles the certificate floor and an HTTPS request without one fails before it is sent;
+ * only the tests, against a local HTTP server, leave it out.
  */
-class Api(private val origin: String, private val token: String? = null, private val key: DeviceKey? = null) {
+class Api(
+    private val origin: String,
+    private val token: String? = null,
+    private val key: DeviceKey? = null,
+    private val tls: Tls? = null,
+) {
 
     /** Redeems a scanned phone code, enrolling [key] when there is one. A used or expired code is a 400. */
     fun redeem(code: String, name: String): Linked {
@@ -76,6 +85,11 @@ class Api(private val origin: String, private val token: String? = null, private
     internal fun open(method: String, path: String, headers: Map<String, String> = emptyMap(), body: ByteArray? = null, off: Int = 0, len: Int = body?.size ?: 0): HttpURLConnection {
         val url = URI(origin + path).toURL()
         val conn = url.openConnection() as HttpURLConnection
+        // Before anything else: the floor refuses a weak chain during the handshake, so a
+        // request byte is never written to one.
+        if (conn is HttpsURLConnection) {
+            checkNotNull(tls) { "an HTTPS Api was built without a certificate floor" }.secure(conn)
+        }
         conn.requestMethod = method
         conn.instanceFollowRedirects = false
         conn.useCaches = false

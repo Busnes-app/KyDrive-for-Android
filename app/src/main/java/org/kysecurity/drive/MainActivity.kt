@@ -22,7 +22,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.kysecurity.drive.core.Api
 import org.kysecurity.drive.core.ApiError
 import org.kysecurity.drive.core.Drive
 import org.kysecurity.drive.core.FileItem
@@ -407,8 +406,8 @@ class MainActivity : SecureActivity() {
                 runCatching {
                     // The key exists before the code is spent, so the token is never usable unsigned.
                     val key = DeviceSigningKey.create().also { made = it }
-                    val linked = Api(link.origin, key = key).redeem(link.code, deviceName(this@MainActivity))
-                    val account = Api(link.origin, linked.token, key).account()
+                    val linked = driveApi(link.origin, key = key).redeem(link.code, deviceName(this@MainActivity))
+                    val account = driveApi(link.origin, linked.token, key).account()
                     if (account.userId != linked.userId) throw IOException("token answered for another account")
                     val next = Session(link.origin, linked.token, linked.userId, linked.user, deviceName(this@MainActivity), key.alias)
                     // A signed-out phone keeps its cache only for the same account on the same server.

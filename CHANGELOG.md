@@ -17,6 +17,10 @@
   lint, exported-component checks, dependency verification and CodeQL in CI.
 - Current user instructions, version/release policy, security reporting and live
   OpenSSF Best Practices/Scorecard badges.
+- Certificate strength checks during the HTTPS handshake: RSA 2048 / EC 256 minimum
+  keys and SHA-2 verified signatures across the platform-validated chain, including
+  the anchor's key. Only the final self-issued anchor's unused signature is exempt.
+- A 14-chapter mdBook manual, contributor guide and documentation build/link checks in CI.
 
 No user release has been published. Upgrading between development commits may require
 relinking a phone when the server's device protocol changes. Planned photo backup,
