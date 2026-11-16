@@ -110,8 +110,12 @@ class PinnedTlsTest {
     @Test
     fun noPinYetPinsTheFirstLeafAndLearnsTheIdentityKey() {
         val pins = MemoryPins()
+        val before = now()
         api(pins).account()
-        assertEquals(TlsPin(PIN_A, TlsPinTest.KEY), pins.current())
+        val pinned = pins.current()!!
+        assertEquals(TlsPin(PIN_A, TlsPinTest.KEY, pinned.statementIssuedAt), pinned)
+        // The first pin carries a freshness floor: the time it was set.
+        assertTrue(pinned.statementIssuedAt in before..now())
         // Pinned now: the other leaf is refused.
         serving = "b"
         identityKey = null
@@ -132,6 +136,24 @@ class PinnedTlsTest {
         val pins = MemoryPins(TlsPin(PIN_A, TlsPinTest.KEY, 7))
         api(pins).account()
         assertEquals(TlsPin(PIN_A, TlsPinTest.KEY, 7), pins.current())
+    }
+
+    @Test
+    fun aStatementOlderThanTheFirstPinCannotRollBack() {
+        // Linked over leaf B, which the server serves now.
+        serving = "b"
+        val pins = MemoryPins()
+        api(pins).account()
+        assertEquals(PIN_B, pins.current()!!.leaf)
+        seen.clear()
+        // An interceptor holds retired leaf A and the statement the server signed for it an hour before linking.
+        serving = "a"
+        val linked = pins.current()!!.statementIssuedAt
+        statement = { TlsPinTest.statement(host = "localhost", pin = PIN_A, at = linked - 3600) }
+        assertTrue(assertThrows(IOException::class.java) { api(pins).account() }.isPinMismatch())
+        assertEquals(PIN_B, pins.current()!!.leaf)
+        // Only the credential-free statement fetch reached leaf A: no authenticated retry.
+        assertEquals(listOf("GET /api/devices/tls-pin auth=null signed=false"), seen.toList())
     }
 
     @Test

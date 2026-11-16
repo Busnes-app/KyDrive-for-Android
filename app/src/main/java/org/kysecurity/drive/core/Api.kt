@@ -98,7 +98,7 @@ class Api(
             // The one retry: a server flapping between leaves fails here instead of rolling again.
             send(method, path, headers, body, off, len, pins.current()?.leaf ?: throw e, credentials = true)
         }
-        if (pin == null && conn.responseCode in 200..299) conn.leaf()?.let { pins.replace(null, TlsPin(it)) }
+        if (pin == null && conn.responseCode in 200..299) conn.leaf()?.let { pins.replace(null, TlsPin.first(it, now())) }
         return conn
     }
 

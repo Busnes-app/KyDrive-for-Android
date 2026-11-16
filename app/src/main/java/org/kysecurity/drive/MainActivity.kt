@@ -416,7 +416,7 @@ class MainActivity : SecureActivity() {
                     // The key exists before the code is spent, so the token is never usable unsigned.
                     val key = DeviceSigningKey.create().also { made = it }
                     // The link's pin when it has one, else the leaf the redemption meets.
-                    val pins = MemoryPins(link.pin?.let { TlsPin(it) })
+                    val pins = MemoryPins(link.pin?.let { TlsPin.first(it, System.currentTimeMillis() / 1000) })
                     val linked = Api(link.origin, key = key, pins = pins).redeem(link.code, deviceName(this@MainActivity))
                     val api = Api(link.origin, linked.token, key, pins)
                     val account = api.account()

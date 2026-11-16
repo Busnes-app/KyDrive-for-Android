@@ -16,9 +16,18 @@ import kotlin.math.abs
 
 /**
  * A session's TLS pin: the [leaf] it trusts, the server's Ed25519 [identityKey] that may sign a
- * successor, and the `issued_at` of the statement that installed [leaf] (0 when it was not).
+ * successor, and the freshness floor a successor's statement must be newer than: the `issued_at`
+ * of the statement that installed [leaf], or the time [leaf] was first pinned.
  */
-data class TlsPin(val leaf: String, val identityKey: String? = null, val statementIssuedAt: Long = 0)
+data class TlsPin(val leaf: String, val identityKey: String? = null, val statementIssuedAt: Long = 0) {
+    companion object {
+        /**
+         * A pin set by linking or trust on first use, at [now] (Unix seconds). The floor stops a
+         * statement signed before it, for a since-retired leaf, from rolling the session back.
+         */
+        fun first(leaf: String, now: Long) = TlsPin(leaf, statementIssuedAt = now)
+    }
+}
 
 /** Where a session keeps its pin. [replace] is compare-and-swap: it writes only if [expected] is still stored. */
 interface PinStore {

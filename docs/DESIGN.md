@@ -138,7 +138,9 @@ There is no sign-in-on-the-phone path. Linking needs the web app open on a secon
   `GET /api/devices/tls-pin` once, with system trust and no credential, and repins only if
   the identity key signed `kydrive-tls-pin/1\n<host>\n<pin>\n<issued_at>` for the leaf that
   fetch met, for this host, within 24 h of the phone's clock, newer than the statement
-  behind the current pin, and for a leaf not already pinned. Then the failed request is
+  behind the current pin (or, for a first pin, the moment it was set, so a statement signed
+  before linking for a since-retired leaf cannot roll the phone back), and for a leaf not
+  already pinned. Then the failed request is
   retried once. An interceptor presents its own leaf, which the server never signs.
 - Without an identity key (an older server), a mismatch fails closed: link again by QR.
 
