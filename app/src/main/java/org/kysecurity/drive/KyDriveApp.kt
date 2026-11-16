@@ -11,7 +11,10 @@ class KyDriveApp : Application() {
 
     /** Always delivered by the process, even when the setup activity's coroutine was cancelled. */
     fun enforceLock() {
-        mainExecutor.execute { startedScreens.toList().forEach { it.gate() } }
+        mainExecutor.execute {
+            if (Lock.app.isLocked()) OpenProvider.forget()
+            startedScreens.toList().forEach { it.gate() }
+        }
     }
 
     override fun onCreate() {
