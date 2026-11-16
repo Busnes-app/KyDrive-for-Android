@@ -137,6 +137,9 @@ Three kinds of data live on the device:
 - **Opened files:** an on-disk cache, used to preview a file and to serve it through the
   DocumentsProvider. Least-recently-used files are evicted past a cap (default 1 GB,
   adjustable in Settings).
+  Until that cache lands with the DocumentsProvider, Open streams instead: `OpenProvider`
+  hands the other app a proxy file descriptor whose reads are HTTP ranges pinned to the
+  listed version (`If-Range` on the digest), so nothing is written to disk at all.
 - **Keep on device (M5):** pinned files that are never evicted. A WorkManager job
   refreshes them when the server revision changes. The check runs on unmetered networks by
   default.

@@ -4,17 +4,40 @@
     android:layout_height="64dp"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingStart="20dp"
+    android:paddingStart="8dp"
     android:paddingEnd="8dp">
+
+    <!-- Shown inside a folder; Back goes up one level. -->
+    <ImageButton
+        android:id="@+id/up"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/back"
+        android:src="@drawable/ic_back"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/title"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
         android:layout_weight="1"
+        android:ellipsize="middle"
+        android:singleLine="true"
         android:text="@string/nav_files"
         android:textAppearance="?attr/textAppearanceTitleLarge"
         android:textStyle="bold" />
+
+    <ImageButton
+        android:id="@+id/more"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/more"
+        android:src="@drawable/ic_more"
+        android:tooltipText="@string/more"
+        android:visibility="gone" />
 
     <ImageButton
         android:id="@+id/settings"

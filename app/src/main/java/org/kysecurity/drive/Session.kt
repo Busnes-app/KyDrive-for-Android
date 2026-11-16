@@ -63,6 +63,7 @@ class SessionStore(context: Context) {
     /** Crypto-shreds everything this app holds. Idempotent; safe to call when unlinked. */
     fun wipe() {
         marker.createNewFile()
+        OpenProvider.forget()
         val ks = keyStore()
         for (alias in ks.aliases().toList()) ks.deleteEntry(alias)
         app.cacheDir.listFiles()?.forEach { it.deleteRecursively() }
