@@ -143,12 +143,13 @@ class PinnedTlsTest {
         // Linked over leaf B, which the server serves now.
         serving = "b"
         val pins = MemoryPins()
+        val linked = now()
         api(pins).account()
         assertEquals(PIN_B, pins.current()!!.leaf)
         seen.clear()
-        // An interceptor holds retired leaf A and the statement the server signed for it an hour before linking.
+        // An interceptor holds retired leaf A and the statement the server signed for it an hour
+        // before linking: inside the 24 h window, so only the floor refuses it.
         serving = "a"
-        val linked = pins.current()!!.statementIssuedAt
         statement = { TlsPinTest.statement(host = "localhost", pin = PIN_A, at = linked - 3600) }
         assertTrue(assertThrows(IOException::class.java) { api(pins).account() }.isPinMismatch())
         assertEquals(PIN_B, pins.current()!!.leaf)
