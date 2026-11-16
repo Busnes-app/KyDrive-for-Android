@@ -122,6 +122,8 @@ change the server must make goes in a separate `kydrive-server` PR.
   `allowBackup=false`, and the data-extraction rules exclude every domain.
 - The default build has no Google Play Services and no proprietary SDKs, so F-Droid can
   ship it. No analytics and no crash SDK.
+- The wire layer is `org.kysecurity.drive.core`: no Android imports, so iOS can mirror it.
+  It uses the platform's `HttpURLConnection` and `org.json`.
 - The look and the Android conventions follow `KyPost-for-Android`: Busnes palettes, the
   adaptive shell with the rail on the right, Activity Embedding and app lock. The
   benchmark is Google Drive.
@@ -136,8 +138,13 @@ change the server must make goes in a separate `kydrive-server` PR.
 ## Verification
 - `./gradlew testDebugUnitTest lintDebug checkExportedComponentsDebug assembleRelease`
   is what CI runs. `SourceRulesTest` checks the rules above that a reviewer would
-  otherwise have to remember: no logging, every activity extends `SecureActivity`, the
-  backup and TLS settings in the manifest and `res/xml`.
+  otherwise have to remember: no logging, every activity extends `SecureActivity` (zxing's
+  scanner calls `secureWindow` instead), `core` has no Android imports, and the backup and
+  TLS settings in the manifest and `res/xml`.
+- `RealServerTest` runs the wire layer against a real `kydrive-server` when
+  `KYDRIVE_SERVER_BIN` names a built binary, and is skipped otherwise. The `ci-real-server`
+  job builds the pinned commit in `.github/workflows/ci.yml` and fails if the test skipped.
+  Bump that pin when the app needs a newer route.
 - `checkExportedComponents<Variant>` fails unless the merged manifest exports exactly
   `allowedExportedComponents` in `app/build.gradle.kts`.
 - A new or bumped dependency means regenerating `gradle/verification-metadata.xml` with
