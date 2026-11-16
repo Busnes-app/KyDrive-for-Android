@@ -47,6 +47,35 @@ jobs:
             cat "$f"
           done || true
 
+  # Fuzzes the QR link parser for a bounded minute; plain test runs only replay its inputs.
+  fuzz:
+    name: ci-fuzz
+    if: github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-provider: basic
+          cache-read-only: true
+      - name: fuzz LinkUri.parse
+        env:
+          JAZZER_FUZZ: '1'
+        run: ./gradlew testDebugUnitTest --tests 'org.kysecurity.drive.core.LinkUriFuzzTest'
+      # A finding is written beside the seed inputs; keep it to reproduce.
+      - name: keep a finding
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-finding
+          path: app/src/test/resources/org/kysecurity/drive/core/LinkUriFuzzTestInputs/
+
   # The only job that runs R8. A missing keep rule does not fail a build; it ships an APK that
   # throws at runtime, so the release variant is built on every PR.
   release-build:

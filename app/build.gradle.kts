@@ -74,6 +74,11 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = false
+        unitTests.all {
+            it.useJUnitPlatform()
+            // Jazzer attaches its instrumentation agent at run time.
+            it.jvmArgs("-XX:+EnableDynamicAgentLoading")
+        }
     }
 }
 
@@ -87,6 +92,11 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     testImplementation(libs.junit)
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.jazzer.junit)
+    testRuntimeOnly(libs.junit.vintage)
+    testRuntimeOnly(libs.junit.launcher)
     testImplementation(libs.org.json)
     // Lint runs from its own classpath, which the root buildscript floors do not reach.
     constraints { libs.bundles.build.tool.floors.get().forEach { add("androidLintTool", it) } }

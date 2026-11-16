@@ -164,6 +164,11 @@ change the server must make goes in a separate `kydrive-server` PR.
   `KYDRIVE_SERVER_BIN` names a built binary, and is skipped otherwise. The `ci-real-server`
   job builds the pinned commit in `.github/workflows/ci.yml` and fails if the test skipped.
   Bump that pin when the app needs a newer route.
+- Unit tests run on the JUnit Platform: JUnit 4 tests through the vintage engine, Jazzer
+  `@FuzzTest`s (Java, so Jazzer and Scorecard find them) through Jupiter. A plain run replays
+  each fuzz test's inputs in `app/src/test/resources/.../<Class>Inputs/<method>/`; `ci-fuzz`
+  fuzzes with `JAZZER_FUZZ=1` for `maxDuration`. Add a finding's input there once fixed.
+  `LinkUriFuzzTest` covers the QR link parser, the first untrusted input.
 - `checkExportedComponents<Variant>` fails unless the merged manifest exports exactly
   `allowedExportedComponents` in `app/build.gradle.kts`.
 - A new or bumped dependency means regenerating `gradle/verification-metadata.xml` with
