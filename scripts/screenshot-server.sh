@@ -84,6 +84,8 @@ start)
   done
   ;;
 link)
+  # Minting a code needs a recent step-up; a fresh sign-in is one.
+  web POST /api/auth/login -H 'Content-Type: application/json' -d '{"username":"admin","password":"ShotsReplacementPass456!"}' > /dev/null
   web POST /api/devices/phone-code | json link
   ;;
 stop)
