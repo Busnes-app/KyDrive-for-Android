@@ -10,7 +10,7 @@ buildscript {
             classpath("org.apache.commons:commons-lang3:3.21.0")
             classpath("org.bitbucket.b_c:jose4j:0.9.7")
             classpath("org.jdom:jdom2:2.0.6.1")
-            classpath("com.google.guava:guava:33.7.2-jre")
+            classpath("com.google.guava:guava:33.8.0-jre")
             // AGP's built-in Kotlin would otherwise compile with the older KGP it bundles.
             classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${libs.versions.kotlin.get()}")
         }
