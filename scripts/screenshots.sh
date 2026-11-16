@@ -27,20 +27,34 @@ tap() {
   "$adb" -s "$serial" shell input tap $(((x1 + x2) / 2)) $(((y1 + y2) / 2))
 }
 
-# Saves screen $1 once text containing $2, unique to that screen, is showing.
+# Saves screen $1 once text containing $2, unique to that screen, is in the view tree and
+# the display has drawn it: a capture that differs from the previous screen's and is
+# unchanged a second later. A cold activity is in the tree before its first frame.
 shot() {
+  file=$out/$form-$mode-$1.png
+  found=
   for _ in $(seq 30); do
     "$adb" -s "$serial" shell uiautomator dump /sdcard/ui.xml > /dev/null
-    if "$adb" -s "$serial" exec-out cat /sdcard/ui.xml | grep -qF "text=\"$2"; then
-      sleep 1 # let the transition finish drawing
-      "$adb" -s "$serial" exec-out screencap -p > "$out/$form-$mode-$1.png"
-      return
-    fi
+    "$adb" -s "$serial" exec-out cat /sdcard/ui.xml | grep -qF "text=\"$2" && { found=1; break; }
     sleep 1
   done
-  echo "screen $1 never showed '$2' ($form, $mode)" >&2
+  [ -n "$found" ] || { echo "screen $1 never showed '$2' ($form, $mode)" >&2; exit 1; }
+  rm -f "$file"
+  for _ in $(seq 30); do
+    "$adb" -s "$serial" exec-out screencap -p > "$file.new"
+    if ! cmp -s "$file.new" "$prev" && cmp -s "$file.new" "$file"; then
+      rm "$file.new"
+      prev=$file
+      return
+    fi
+    mv "$file.new" "$file"
+    sleep 1
+  done
+  rm -f "$file"
+  echo "screen $1 never settled ($form, $mode)" >&2
   exit 1
 }
+prev=
 
 for form in phone tablet; do
   case $form in
@@ -74,6 +88,13 @@ for form in phone tablet; do
   "$adb" -s "$serial" shell settings put global window_animation_scale 0
   "$adb" -s "$serial" shell settings put global transition_animation_scale 0
   "$adb" -s "$serial" shell settings put global animator_duration_scale 0
+  # A frozen status bar, so captures differ only when the app's screen does.
+  "$adb" -s "$serial" shell settings put global sysui_demo_allowed 1
+  for cmd in "enter" "clock -e hhmm 1200" "notifications -e visible false" \
+    "battery -e level 100 -e plugged false" "network -e wifi show -e level 4 -e mobile hide"; do
+    # shellcheck disable=SC2086 # each entry is a command and its extras
+    "$adb" -s "$serial" shell am broadcast -a com.android.systemui.demo -e command $cmd > /dev/null
+  done
   "$adb" -s "$serial" install -r "$apk" > /dev/null
 
   for mode in light dark; do
