@@ -46,9 +46,10 @@ class OpenProvider : ContentProvider() {
         val o = opened[uri.lastPathSegment] ?: throw FileNotFoundException()
         if (mode != "r") throw SecurityException("read only")
         val app = context!!.applicationContext
-        val born = generation
         val drive = Drive(o.session.api())
-        val range = RangeReader(o.file.size, WINDOW, { generation == born }) { off, len ->
+        // The generation recorded when the URI was made: a wipe at any point after that,
+        // even between the lookup above and here, leaves this reader dead.
+        val range = RangeReader(o.file.size, WINDOW, { generation == o.generation }) { off, len ->
             try {
                 drive.range(o.file, off, len)
             } catch (e: ApiError) {
@@ -77,7 +78,7 @@ class OpenProvider : ContentProvider() {
         override fun onRelease() = range.close()
     }
 
-    private class Opened(val session: Session, val file: FileItem)
+    private class Opened(val session: Session, val file: FileItem, val generation: Int)
 
     companion object {
         private const val WINDOW = 1 shl 20
@@ -89,7 +90,7 @@ class OpenProvider : ContentProvider() {
 
         fun uri(context: Context, session: Session, file: FileItem): Uri {
             val token = UUID.randomUUID().toString()
-            opened[token] = Opened(session, file)
+            opened[token] = Opened(session, file, generation)
             return Uri.Builder().scheme("content").authority("${context.packageName}.open").appendPath(token).build()
         }
 
