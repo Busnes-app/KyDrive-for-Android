@@ -11,6 +11,9 @@
         <item name="colorSurface">@color/bg</item>
         <item name="colorSurfaceContainer">@color/panel</item>
         <item name="colorSurfaceContainerLow">@color/panel</item>
+        <!-- Dialogs and menus sit on these; Material's defaults are lavender. -->
+        <item name="colorSurfaceContainerHigh">@color/panel</item>
+        <item name="colorSurfaceContainerHighest">@color/panel</item>
         <item name="colorOnSurface">@color/ink_strong</item>
         <item name="colorOnSurfaceVariant">@color/ink</item>
         <item name="colorOutline">@color/line</item>
