@@ -11,7 +11,8 @@ It is early: this is the project skeleton. The plan and its decisions are in
 [`docs/DESIGN.md`](docs/DESIGN.md).
 
 - No Google Play Services, analytics or crash reporting.
-- TLS only, against the system's certificate authorities.
+- TLS only, against the system's certificate authorities, with the server's certificate key
+  pinned on top. Renewals roll over through a statement the server signs, without a re-link.
 - Screens are hidden from screenshots and the recent-apps view.
 
 ## Build

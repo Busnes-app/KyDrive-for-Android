@@ -29,6 +29,9 @@ import org.kysecurity.drive.core.FileItem
 import org.kysecurity.drive.core.Folder
 import org.kysecurity.drive.core.Item
 import org.kysecurity.drive.core.LinkUri
+import org.kysecurity.drive.core.MemoryPins
+import org.kysecurity.drive.core.TlsPin
+import org.kysecurity.drive.core.isPinMismatch
 import org.kysecurity.drive.core.Workspace
 import org.kysecurity.drive.lock.Lock
 import java.io.IOException
@@ -120,6 +123,8 @@ class MainActivity : SecureActivity() {
 
     // ---- browsing ----
 
+    private var keyAsked = false
+
     private fun load() {
         val s = session ?: return
         if (signedOut) return
@@ -130,7 +135,10 @@ class MainActivity : SecureActivity() {
         loadJob = lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val d = Drive(s.api())
+                    val api = s.api(this@MainActivity)
+                    // A phone linked before pinning learns the server's identity key here, over its pinned leaf.
+                    if (!keyAsked && s.pin?.identityKey == null) api.account().also { keyAsked = true }
+                    val d = Drive(api)
                     val p = place ?: Place(getString(R.string.my_files), if (forTab == R.id.nav_files) d.personal() else null)
                     p to fetch(d, p)
                 }
@@ -203,7 +211,7 @@ class MainActivity : SecureActivity() {
     private fun fileThen(id: String, then: (FileItem) -> Unit) {
         val s = session ?: return
         lifecycleScope.launch {
-            withContext(Dispatchers.IO) { runCatching { Drive(s.api()).file(id) } }
+            withContext(Dispatchers.IO) { runCatching { Drive(s.api(this@MainActivity)).file(id) } }
                 .onSuccess(then).onFailure { failed(s, it) }
         }
     }
@@ -278,7 +286,7 @@ class MainActivity : SecureActivity() {
                 return@setOnClickListener
             }
             dialog.dismiss()
-            mutate(s) { done(Drive(s.api()), name) }
+            mutate(s) { done(Drive(s.api(this@MainActivity)), name) }
         }
     }
 
@@ -300,7 +308,7 @@ class MainActivity : SecureActivity() {
     private fun trash(item: Item, trashed: Boolean) {
         val s = session ?: return
         mutate(s, if (trashed) getString(R.string.moved_to_trash, item.name) else getString(R.string.restored, item.name), undo = if (trashed) ({ trash(item, false) }) else null) {
-            Drive(s.api()).trash(item, trashed)
+            Drive(s.api(this@MainActivity)).trash(item, trashed)
         }
     }
 
@@ -324,6 +332,7 @@ class MainActivity : SecureActivity() {
         val s = session ?: return
         val p = stack.lastOrNull() ?: return
         val ws = p.workspace ?: return
+        val app = applicationContext
         for (uri in uris) {
             val (name, size) = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use {
                 if (!it.moveToFirst()) null else it.getString(0).orEmpty() to (if (it.isNull(1)) -1L else it.getLong(1))
@@ -333,10 +342,10 @@ class MainActivity : SecureActivity() {
                 continue
             }
             snack(getString(R.string.uploading, name))
-            val resolver = applicationContext.contentResolver
-            Work.run(this, s, getString(R.string.uploaded, name)) {
+            val resolver = app.contentResolver
+            Work.run(app, s, getString(R.string.uploaded, name)) {
                 val input = resolver.openInputStream(uri) ?: throw IOException("the picker's file is gone")
-                Drive(s.api()).upload(ws.id, p.folder, name, size, null, input)
+                Drive(s.api(app)).upload(ws.id, p.folder, name, size, null, input)
             }
         }
     }
@@ -350,13 +359,14 @@ class MainActivity : SecureActivity() {
     private fun save(f: FileItem, uri: Uri) {
         val s = session ?: return
         snack(getString(R.string.saving, f.name))
-        val resolver = applicationContext.contentResolver
-        Work.run(this, s, getString(R.string.saved, f.name)) {
+        val app = applicationContext
+        val resolver = app.contentResolver
+        Work.run(app, s, getString(R.string.saved, f.name)) {
             try {
                 val out = resolver.openOutputStream(uri, "wt") ?: throw IOException("the chosen place cannot be written")
-                out.use { Drive(s.api()).download(f, it) }
+                out.use { Drive(s.api(app)).download(f, it) }
             } catch (e: Exception) {
-                runCatching { DocumentsContract.deleteDocument(resolver, uri) }
+                kotlin.runCatching { DocumentsContract.deleteDocument(resolver, uri) }
                 throw e
             }
         }
@@ -407,13 +417,17 @@ class MainActivity : SecureActivity() {
                 runCatching {
                     // The key exists before the code is spent, so the token is never usable unsigned.
                     val key = DeviceSigningKey.create().also { made = it }
-                    val linked = Api(link.origin, key = key).redeem(link.code, deviceName(this@MainActivity))
-                    val account = Api(link.origin, linked.token, key).account()
+                    // The link's pin when it has one, else the leaf the redemption meets.
+                    val pins = MemoryPins(link.pin?.let { TlsPin.first(it, System.currentTimeMillis() / 1000) })
+                    val linked = Api(link.origin, key = key, pins = pins).redeem(link.code, deviceName(this@MainActivity))
+                    val api = Api(link.origin, linked.token, key, pins)
+                    val account = api.account()
                     if (account.userId != linked.userId) throw IOException("token answered for another account")
-                    val next = Session(link.origin, linked.token, linked.userId, linked.user, deviceName(this@MainActivity), key.alias)
+                    val pin = pins.current() ?: throw IOException("no TLS leaf to pin")
+                    val next = Session(link.origin, linked.token, linked.userId, linked.user, deviceName(this@MainActivity), key.alias, pin)
                     // A signed-out phone keeps its cache only for the same account on the same server.
                     if (existing != null && (existing.origin != next.origin || existing.userId != next.userId)) {
-                        runCatching { next.api().unlink() }
+                        runCatching { api.unlink() }
                         DeviceSigningKey.delete(key.alias)
                         return@runCatching null
                     }
@@ -448,6 +462,7 @@ class MainActivity : SecureActivity() {
     private fun linkFailure(e: Throwable, host: String): String = when {
         e is ApiError && e.status == 400 -> getString(R.string.link_expired)
         e is ApiError -> getString(R.string.link_refused, e.status)
+        e.isPinMismatch() -> getString(R.string.error_pin, host)
         e is javax.net.ssl.SSLException -> getString(R.string.error_certificate, host)
         else -> getString(R.string.error_unreachable, host)
     }
