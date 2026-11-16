@@ -35,7 +35,7 @@ class AppLockTest {
     fun offUntilAPinIsSet() {
         assertFalse(lock.enabled)
         assertFalse(lock.isLocked())
-        lock.setPin(good)
+        lock.setPin(good, lock.entered())
         assertTrue(lock.enabled)
         assertFalse(lock.isLocked()) // the user who just set it is in
         assertEquals(LockoutPolicy.DEFAULT_WIPE, state.wipeAfter)
@@ -44,16 +44,16 @@ class AppLockTest {
 
     @Test
     fun aNewProcessStartsLocked() {
-        lock.setPin(good)
+        lock.setPin(good, lock.entered())
         val restarted = AppLock(state, pepper, { now }, {})
         assertTrue(restarted.isLocked())
-        assertEquals(Attempt.Success, restarted.attempt(good))
+        assertEquals(Attempt.Success, restarted.attempt(good, restarted.entered()))
         assertFalse(restarted.isLocked())
     }
 
     @Test
     fun theGracePeriodLocksOnlyOnceItEnds() {
-        lock.setPin(good)
+        lock.setPin(good, lock.entered())
         lock.backgrounded()
         now += AppLock.DEFAULT_GRACE - 1
         lock.foregrounded()
@@ -65,7 +65,7 @@ class AppLockTest {
 
     @Test
     fun lockingIsAnnouncedOncePerUnlock() {
-        lock.setPin(good)
+        lock.setPin(good, lock.entered())
         lock.backgrounded()
         now += AppLock.DEFAULT_GRACE
         assertTrue(lock.isLocked())
@@ -73,14 +73,14 @@ class AppLockTest {
         lock.lockNow()
         assertEquals(1, locks) // open files were ended once, when it locked
         lock.foregrounded()
-        lock.attempt(good)
+        lock.attempt(good, lock.entered())
         lock.lockNow()
         assertEquals(2, locks)
     }
 
     @Test
     fun noGraceLocksAtOnce() {
-        lock.setPin(good)
+        lock.setPin(good, lock.entered())
         state.graceMillis = 0
         lock.backgrounded()
         assertTrue(lock.isLocked())
@@ -88,36 +88,36 @@ class AppLockTest {
 
     @Test
     fun wrongPinsClimbTheLadderAndTheRightOneResetsIt() {
-        lock.setPin(good)
+        lock.setPin(good, lock.entered())
         lock.lockNow()
-        assertEquals(Attempt.Rejected(0), lock.attempt(bad))
-        assertEquals(Attempt.Rejected(0), lock.attempt(bad))
-        assertEquals(Attempt.Rejected(30_000), lock.attempt(bad))
+        assertEquals(Attempt.Rejected(0), lock.attempt(bad, lock.entered()))
+        assertEquals(Attempt.Rejected(0), lock.attempt(bad, lock.entered()))
+        assertEquals(Attempt.Rejected(30_000), lock.attempt(bad, lock.entered()))
         // Locked out: even the right PIN waits, and is not tried.
-        assertEquals(Attempt.Rejected(30_000), lock.attempt(good))
+        assertEquals(Attempt.Rejected(30_000), lock.attempt(good, lock.entered()))
         now += 30_000
-        assertEquals(Attempt.Success, lock.attempt(good))
+        assertEquals(Attempt.Success, lock.attempt(good, lock.entered()))
         assertEquals(0, state.failedAttempts)
     }
 
     @Test
     fun biometricUnlockWaitsOutTheLockoutToo() {
-        lock.setPin(good)
+        lock.setPin(good, lock.entered())
         lock.lockNow()
-        repeat(3) { lock.attempt(bad) }
-        assertTrue(lock.unlockWithBiometric() is Attempt.Rejected)
+        repeat(3) { lock.attempt(bad, lock.entered()) }
+        assertTrue(lock.unlockWithBiometric(lock.entered()) is Attempt.Rejected)
         assertTrue(lock.isLocked())
     }
 
     @Test
     fun theErasePolicyWipes() {
-        lock.setPin(good)
+        lock.setPin(good, lock.entered())
         state.wipeAfter = 10
         lock.lockNow()
         var last: Attempt = Attempt.Success
         repeat(10) {
             now += 3_600_000 // wait out each delay
-            last = lock.attempt(bad)
+            last = lock.attempt(bad, lock.entered())
         }
         assertEquals(Attempt.Wiped, last)
         assertEquals(1, wiped)
@@ -126,31 +126,31 @@ class AppLockTest {
 
     @Test
     fun eraseOffNeverWipes() {
-        lock.setPin(good)
+        lock.setPin(good, lock.entered())
         state.wipeAfter = null
         lock.lockNow()
         repeat(40) {
             now += 3_600_000
-            lock.attempt(bad)
+            lock.attempt(bad, lock.entered())
         }
         assertEquals(0, wiped)
     }
 
     @Test
     fun anUnreadableVerifierIsNotAWrongPin() {
-        lock.setPin(good)
+        lock.setPin(good, lock.entered())
         lock.lockNow()
         pepperGone = true
-        assertEquals(Attempt.Unavailable, lock.attempt(bad))
+        assertEquals(Attempt.Unavailable, lock.attempt(bad, lock.entered()))
         assertEquals(0, state.failedAttempts)
         assertTrue(lock.isLocked())
     }
 
     @Test
     fun aLockoutFromBeforeARebootLastsOneDelayNotUntilUptimeCatchesUp() {
-        lock.setPin(good)
+        lock.setPin(good, lock.entered())
         lock.lockNow()
-        repeat(3) { lock.attempt(bad) }
+        repeat(3) { lock.attempt(bad, lock.entered()) }
         now = 5_000 // rebooted: the clock restarted
         assertEquals(30_000, lock.remainingLockout())
         now += 30_000
@@ -159,15 +159,15 @@ class AppLockTest {
 
     @Test
     fun aPinChangeKeepsTheUsersChoices() {
-        lock.setPin(good)
+        lock.setPin(good, lock.entered())
         state.wipeAfter = null
         state.graceMillis = 0
-        lock.setPin("80461375".toCharArray())
+        lock.setPin("80461375".toCharArray(), lock.entered())
         assertNull(state.wipeAfter)
         assertEquals(0, state.graceMillis)
         lock.lockNow()
-        assertTrue(lock.attempt(good) is Attempt.Rejected)
-        assertEquals(Attempt.Success, lock.attempt("80461375".toCharArray()))
+        assertTrue(lock.attempt(good, lock.entered()) is Attempt.Rejected)
+        assertEquals(Attempt.Success, lock.attempt("80461375".toCharArray(), lock.entered()))
     }
 
     @Test
@@ -209,13 +209,14 @@ class AppLockTest {
             }
             raw.clone()
         }, { now }, {})
-        if (!setup) app.setPin(good)
+        if (!setup) app.setPin(good, app.entered())
         app.lockNow()
         blocking.set(true)
         val executor = Executors.newSingleThreadExecutor()
         try {
+            val submitted = app.entered()
             val result = executor.submit {
-                if (setup) app.setPin(good) else assertEquals(Attempt.Success, app.attempt(good))
+                if (setup) app.setPin(good, submitted) else assertEquals(Attempt.Stale, app.attempt(good, submitted))
             }
             assertTrue(entered.await(10, TimeUnit.SECONDS))
             app.backgrounded()
@@ -232,11 +233,27 @@ class AppLockTest {
     }
 
     @Test
-    fun biometricCompletionInBackgroundCannotUnlock() {
-        lock.setPin(good)
+    fun aCheckQueuedBeforeLeavingCannotUnlockAfterReturning() {
+        // The reviewer's case: the PIN is submitted, the app leaves and returns, and only then
+        // does the queued check run. It must not adopt the newer generation.
+        lock.setPin(good, lock.entered())
         lock.lockNow()
+        val entered = lock.entered()
         lock.backgrounded()
-        assertEquals(Attempt.Success, lock.unlockWithBiometric())
+        lock.foregrounded()
+        assertEquals(Attempt.Stale, lock.attempt(good, entered))
+        assertTrue(lock.isLocked())
+        assertEquals(0, state.failedAttempts)
+        assertEquals(Attempt.Success, lock.attempt(good, lock.entered()))
+    }
+
+    @Test
+    fun biometricCompletionInBackgroundCannotUnlock() {
+        lock.setPin(good, lock.entered())
+        lock.lockNow()
+        val entered = lock.entered()
+        lock.backgrounded()
+        assertEquals(Attempt.Stale, lock.unlockWithBiometric(entered))
         now += AppLock.DEFAULT_GRACE + 1
         lock.foregrounded()
         assertTrue(lock.isLocked())

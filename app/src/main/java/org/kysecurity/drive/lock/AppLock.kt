@@ -29,6 +29,12 @@ sealed interface Attempt {
     data object Success : Attempt
     data class Rejected(val waitMillis: Long) : Attempt
 
+    /**
+     * The right PIN, but the app locked or left the screen after it was entered. Still locked,
+     * and not counted as a wrong PIN.
+     */
+    data object Stale : Attempt
+
     /** Too many wrong PINs: everything is already erased. */
     data object Wiped : Attempt
 
@@ -85,11 +91,21 @@ class AppLock(
         if (relocked) onLock()
     }
 
-    private fun authenticationStarted(): Long = synchronized(visibility) { visibilityVersion }
+    /**
+     * Read by the screen when the user submits a PIN or starts a biometric prompt, before any
+     * waiting: leaving the app or locking moves it on, so a check that finishes afterwards,
+     * even one queued behind another, cannot unlock.
+     */
+    fun entered(): Long = synchronized(visibility) { visibilityVersion }
 
-    private fun authenticated(version: Long) = updateLockState {
-        unlocked = foreground && version == visibilityVersion
-        deadline = 0
+    private fun authenticated(entered: Long): Boolean {
+        var ok = false
+        updateLockState {
+            ok = foreground && entered == visibilityVersion
+            unlocked = ok
+            deadline = 0
+        }
+        return ok
     }
 
     fun isLocked(): Boolean {
@@ -130,12 +146,12 @@ class AppLock(
         deadline = 0
     }
 
+    /** [entered] is what [entered] returned when the user submitted [pin]. */
     @Synchronized
-    fun attempt(pin: CharArray): Attempt {
+    fun attempt(pin: CharArray, entered: Long): Attempt {
         val wait = remainingLockout()
         if (wait > 0) return Attempt.Rejected(wait)
         val record = state.pin ?: return Attempt.Success
-        val version = authenticationStarted()
         val ok = try {
             matches(pin, record)
         } catch (_: Exception) {
@@ -143,8 +159,7 @@ class AppLock(
         }
         if (ok) {
             state.failedAttempts = 0
-            authenticated(version)
-            return Attempt.Success
+            return if (authenticated(entered)) Attempt.Success else Attempt.Stale
         }
         val attempts = state.failedAttempts + 1
         state.failedAttempts = attempts
@@ -163,18 +178,16 @@ class AppLock(
 
     /** After a strong biometric prompt bound to a Keystore key. Under the same lockout as a PIN. */
     @Synchronized
-    fun unlockWithBiometric(): Attempt {
+    fun unlockWithBiometric(entered: Long): Attempt {
         val wait = remainingLockout()
         if (wait > 0) return Attempt.Rejected(wait)
         state.failedAttempts = 0
-        authenticated(authenticationStarted())
-        return Attempt.Success
+        return if (authenticated(entered)) Attempt.Success else Attempt.Stale
     }
 
     /** Sets or changes the PIN. Callers check [PinPolicy] and, for a change, the old PIN first. */
     @Synchronized
-    fun setPin(pin: CharArray) {
-        val version = authenticationStarted()
+    fun setPin(pin: CharArray, entered: Long) {
         val turningOn = state.pin == null
         val salt = ByteArray(16).also { random.nextBytes(it) }
         state.pin = PinRecord(salt, derive(pin, salt))
@@ -184,7 +197,7 @@ class AppLock(
             state.wipeAfter = LockoutPolicy.DEFAULT_WIPE
             state.graceMillis = DEFAULT_GRACE
         }
-        authenticated(version)
+        authenticated(entered)
     }
 
     /** Turns the lock off. Callers verify the PIN through [attempt] first. */

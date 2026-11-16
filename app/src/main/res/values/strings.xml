@@ -79,8 +79,8 @@
     <string name="lock_biometric">Unlock with fingerprint or face</string>
     <string name="lock_after">Lock after leaving the app</string>
     <string name="lock_after_now">At once</string>
-    <string name="lock_after_30s">30 seconds</string>
-    <string name="lock_after_5m">5 minutes</string>
+    <string name="lock_after_30s">30 s</string>
+    <string name="lock_after_5m">5 min</string>
     <string name="lock_erase">Erase KyDrive from this phone after wrong PINs</string>
     <string name="lock_erase_10">10</string>
     <string name="lock_erase_20">20</string>

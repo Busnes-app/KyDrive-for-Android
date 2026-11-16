@@ -18,7 +18,7 @@ import org.kysecurity.drive.lock.PinPolicy
 
 /** What to tell the user about a PIN that did not unlock, or null for a success. */
 fun AppCompatActivity.attemptText(a: Attempt): String? = when (a) {
-    Attempt.Success -> null
+    Attempt.Success, Attempt.Stale -> null
     Attempt.Unavailable -> getString(R.string.lock_unavailable)
     Attempt.Wiped -> getString(R.string.lock_wiped)
     is Attempt.Rejected ->
@@ -37,11 +37,13 @@ fun AppCompatActivity.restartAfterWipe() {
  * thread, then runs [then] on success. Every PIN check outside the unlock screen comes here.
  */
 fun AppCompatActivity.checkPin(pin: CharArray, then: () -> Unit) {
+    val entered = Lock.app.entered()
     lifecycleScope.launch {
-        val result = withContext(Dispatchers.Default) { Lock.app.attempt(pin).also { pin.fill('0') } }
+        val result = withContext(Dispatchers.Default) { Lock.app.attempt(pin, entered).also { pin.fill('0') } }
         when {
             result == Attempt.Success -> then()
             result == Attempt.Wiped -> restartAfterWipe()
+            result == Attempt.Stale -> Unit // the app left the screen meanwhile; the gate asks again
             else -> Toast.makeText(this@checkPin, attemptText(result), Toast.LENGTH_LONG).show()
         }
     }
@@ -103,8 +105,9 @@ fun AppCompatActivity.askNewPin(then: (CharArray) -> Unit) {
 /** Turns the lock on with a new PIN: the PBKDF2 runs off the main thread. */
 fun AppCompatActivity.turnLockOn(done: () -> Unit) {
     askNewPin { pin ->
+        val entered = Lock.app.entered()
         lifecycleScope.launch {
-            withContext(Dispatchers.Default) { Lock.app.setPin(pin); pin.fill('0') }
+            withContext(Dispatchers.Default) { Lock.app.setPin(pin, entered); pin.fill('0') }
             done()
         }
     }

@@ -19,6 +19,9 @@ import org.kysecurity.drive.lock.Lock
 class UnlockActivity : SecureActivity() {
     private val field by lazy { privatePin(this).apply { setHint(R.string.lock_pin) } }
 
+    // One check at a time, whether from the button or the keyboard.
+    private var checking = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_unlock)
@@ -46,19 +49,24 @@ class UnlockActivity : SecureActivity() {
     }
 
     private fun unlock() {
+        if (checking) return
         val pin = field.takePin()
         if (pin.isEmpty()) return
+        val entered = Lock.app.entered()
+        checking = true
         findViewById<View>(R.id.unlock).isEnabled = false
         lifecycleScope.launch {
-            val result = withContext(Dispatchers.Default) { Lock.app.attempt(pin).also { pin.fill('0') } }
+            val result = withContext(Dispatchers.Default) { Lock.app.attempt(pin, entered).also { pin.fill('0') } }
+            checking = false
             findViewById<View>(R.id.unlock).isEnabled = true
             done(result)
         }
     }
 
     private fun biometric() {
+        val entered = Lock.app.entered()
         Biometric.prompt(this, getString(R.string.lock_locked), getString(R.string.lock_use_pin)) { ok ->
-            if (ok) done(Lock.app.unlockWithBiometric())
+            if (ok) done(Lock.app.unlockWithBiometric(entered))
         }
     }
 
