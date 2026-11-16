@@ -22,9 +22,9 @@ object Lock {
     lateinit var app: AppLock
         private set
 
-    fun init(context: Context, wipe: () -> Unit) {
+    fun init(context: Context, wipe: () -> Unit, onPinSet: () -> Unit) {
         // Locking ends every file already handed to another app, as a wipe does.
-        app = AppLock(PrefsLockState(context), KeystorePepper, SystemClock::elapsedRealtime, wipe) { OpenProvider.forget() }
+        app = AppLock(PrefsLockState(context), KeystorePepper, SystemClock::elapsedRealtime, wipe, onPinSet) { OpenProvider.forget() }
     }
 
     /** Wiping removes the lock with everything else: there is nothing left behind it. */

@@ -53,6 +53,8 @@ class AppLock(
     private val pepper: Pepper,
     private val clock: () -> Long,
     private val wipe: () -> Unit,
+    /** Process-owned completion notification, independent of the setup activity. */
+    private val onPinSet: () -> Unit = {},
     /** Runs each time the app goes from unlocked to locked, on whichever thread noticed. */
     private val onLock: () -> Unit = {},
 ) {
@@ -198,7 +200,9 @@ class AppLock(
             state.wipeAfter = LockoutPolicy.DEFAULT_WIPE
             state.graceMillis = DEFAULT_GRACE
         }
-        return authenticated(entered)
+        val ready = authenticated(entered)
+        onPinSet()
+        return ready
     }
 
     /** Turns the lock off. Callers verify the PIN through [attempt] first. */

@@ -7,19 +7,28 @@ import androidx.appcompat.app.AppCompatDelegate
 import org.kysecurity.drive.lock.Lock
 
 class KyDriveApp : Application() {
+    private val startedScreens = mutableSetOf<SecureActivity>()
+
+    /** Always delivered by the process, even when the setup activity's coroutine was cancelled. */
+    fun enforceLock() {
+        mainExecutor.execute { startedScreens.toList().forEach { it.gate() } }
+    }
+
     override fun onCreate() {
         super.onCreate()
         AppCompatDelegate.setDefaultNightMode(Settings(this).themeMode.night)
-        Lock.init(this) { SessionStore(this).wipe() }
+        Lock.init(this, { SessionStore(this).wipe() }, ::enforceLock)
         // The lock's grace period runs while no KyDrive screen is started; a rotation is not leaving.
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             private var started = 0
 
             override fun onActivityStarted(activity: Activity) {
+                if (activity is SecureActivity) startedScreens.add(activity)
                 if (started++ == 0) Lock.app.foregrounded()
             }
 
             override fun onActivityStopped(activity: Activity) {
+                if (activity is SecureActivity) startedScreens.remove(activity)
                 if (--started == 0 && !activity.isChangingConfigurations) Lock.app.backgrounded()
             }
 

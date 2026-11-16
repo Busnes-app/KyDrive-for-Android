@@ -32,6 +32,18 @@ class AppLockTest {
     private val bad = "73915063".toCharArray()
 
     @Test
+    fun staleSetupPublishesCompletionToTheProcessOwner() {
+        var completed = 0
+        val app = AppLock(state, pepper, { now }, {}, onPinSet = { completed++ })
+        val submitted = app.entered()
+        app.backgrounded()
+        app.foregrounded()
+        assertFalse(app.setPin(good, submitted))
+        assertEquals(1, completed)
+        assertTrue(app.isLocked())
+    }
+
+    @Test
     fun offUntilAPinIsSet() {
         assertFalse(lock.enabled)
         assertFalse(lock.isLocked())
