@@ -142,7 +142,7 @@ class AppLock(
     @Synchronized
     fun setPin(pin: CharArray) {
         val turningOn = state.pin == null
-        val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }
+        val salt = ByteArray(16).also { random.nextBytes(it) }
         state.pin = PinRecord(salt, derive(pin, salt))
         state.failedAttempts = 0
         if (turningOn) {
@@ -204,6 +204,8 @@ class AppLock(
     }
 
     companion object {
+        private val random = SecureRandom()
+
         /** KyPost's CREDENTIAL_KDF_ITERATIONS; the pepper is what makes guessing on-device only. */
         const val ITERATIONS = 150_000
         const val DEFAULT_GRACE = 30_000L
