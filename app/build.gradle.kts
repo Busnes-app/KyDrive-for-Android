@@ -82,6 +82,8 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     testImplementation(libs.junit)
+    // Lint runs from its own classpath, which the root buildscript floors do not reach.
+    constraints { libs.bundles.build.tool.floors.get().forEach { add("androidLintTool", it) } }
 }
 
 androidComponents.onVariants { variant ->
