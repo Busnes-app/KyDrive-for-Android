@@ -43,7 +43,8 @@ fun AppCompatActivity.checkPin(pin: CharArray, then: () -> Unit) {
         when {
             result == Attempt.Success -> then()
             result == Attempt.Wiped -> restartAfterWipe()
-            result == Attempt.Stale -> Unit // the app left the screen meanwhile; the gate asks again
+            // The app locked or left meanwhile: this screen may already be past its gate.
+            result == Attempt.Stale -> (this@checkPin as? SecureActivity)?.gate()
             else -> Toast.makeText(this@checkPin, attemptText(result), Toast.LENGTH_LONG).show()
         }
     }
@@ -107,7 +108,9 @@ fun AppCompatActivity.turnLockOn(done: () -> Unit) {
     askNewPin { pin ->
         val entered = Lock.app.entered()
         lifecycleScope.launch {
-            withContext(Dispatchers.Default) { Lock.app.setPin(pin, entered); pin.fill('0') }
+            val unlocked = withContext(Dispatchers.Default) { Lock.app.setPin(pin, entered).also { pin.fill('0') } }
+            // Set while the app locked or left: the PIN stands, and this screen must ask for it.
+            if (!unlocked) (this@turnLockOn as? SecureActivity)?.gate()
             done()
         }
     }

@@ -27,6 +27,14 @@ abstract class SecureActivity : AppCompatActivity() {
      */
     override fun onStart() {
         super.onStart()
+        gate()
+    }
+
+    /**
+     * Hides this screen and asks for the PIN if the app is locked. Runs on every start, and
+     * again wherever the app can become locked while a screen is already showing.
+     */
+    fun gate() {
         val locked = this !is UnlockActivity && Lock.app.isLocked()
         window.decorView.visibility = if (locked) View.INVISIBLE else View.VISIBLE
         if (locked) startActivity(Intent(this, UnlockActivity::class.java))

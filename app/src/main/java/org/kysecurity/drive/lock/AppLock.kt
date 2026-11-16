@@ -186,8 +186,9 @@ class AppLock(
     }
 
     /** Sets or changes the PIN. Callers check [PinPolicy] and, for a change, the old PIN first. */
+    /** True when the app is unlocked afterwards; false when it locked or left meanwhile. */
     @Synchronized
-    fun setPin(pin: CharArray, entered: Long) {
+    fun setPin(pin: CharArray, entered: Long): Boolean {
         val turningOn = state.pin == null
         val salt = ByteArray(16).also { random.nextBytes(it) }
         state.pin = PinRecord(salt, derive(pin, salt))
@@ -197,7 +198,7 @@ class AppLock(
             state.wipeAfter = LockoutPolicy.DEFAULT_WIPE
             state.graceMillis = DEFAULT_GRACE
         }
-        authenticated(entered)
+        return authenticated(entered)
     }
 
     /** Turns the lock off. Callers verify the PIN through [attempt] first. */

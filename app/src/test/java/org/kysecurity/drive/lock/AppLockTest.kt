@@ -248,6 +248,19 @@ class AppLockTest {
     }
 
     @Test
+    fun setPinSaysWhenItCouldNotUnlock() {
+        assertTrue(lock.setPin(good, lock.entered()))
+        lock.disable()
+        val submitted = lock.entered()
+        lock.backgrounded()
+        lock.foregrounded()
+        // The PIN is set, but the screen that set it must now ask for it.
+        assertFalse(lock.setPin(good, submitted))
+        assertTrue(lock.enabled)
+        assertTrue(lock.isLocked())
+    }
+
+    @Test
     fun biometricCompletionInBackgroundCannotUnlock() {
         lock.setPin(good, lock.entered())
         lock.lockNow()
