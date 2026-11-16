@@ -1,7 +1,6 @@
 # Versions follow KyPost-for-Android, which resolves them on the same compileSdk.
-# Changing any of them means regenerating gradle/verification-metadata.xml in its own commit:
-#   ./gradlew --write-verification-metadata sha256 help
-# Never from CI: CI must fail on an unrecorded artifact, not record it.
+# Changing any of them means regenerating gradle/verification-metadata.xml in its own commit,
+# as AGENTS.md describes. Never from CI: CI must fail on an unrecorded artifact, not record it.
 
 [versions]
 agp = "9.5.1"
@@ -11,6 +10,13 @@ activityKtx = "1.10.1"
 appcompat = "1.8.0"
 material = "1.14.0"
 junit = "4.13.2"
+# Floors for build-tool transitives with published advisories that AGP still requests.
+bouncycastle = "1.86"
+commonsLang3 = "3.21.0"
+httpclient = "4.5.14"
+jose4j = "0.9.7"
+jdom2 = "2.0.6.1"
+guava = "33.8.0-jre"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -18,6 +24,21 @@ androidx-activity-ktx = { group = "androidx.activity", name = "activity-ktx", ve
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+floor-bcprov = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
+floor-bcpkix = { group = "org.bouncycastle", name = "bcpkix-jdk18on", version.ref = "bouncycastle" }
+floor-bcutil = { group = "org.bouncycastle", name = "bcutil-jdk18on", version.ref = "bouncycastle" }
+floor-commons-lang3 = { group = "org.apache.commons", name = "commons-lang3", version.ref = "commonsLang3" }
+floor-httpclient = { group = "org.apache.httpcomponents", name = "httpclient", version.ref = "httpclient" }
+floor-jose4j = { group = "org.bitbucket.b_c", name = "jose4j", version.ref = "jose4j" }
+floor-jdom2 = { group = "org.jdom", name = "jdom2", version.ref = "jdom2" }
+floor-guava = { group = "com.google.guava", name = "guava", version.ref = "guava" }
+
+[bundles]
+# Constraints only raise a version; drop an entry once AGP's own request reaches it.
+build-tool-floors = [
+    "floor-bcprov", "floor-bcpkix", "floor-bcutil", "floor-commons-lang3",
+    "floor-httpclient", "floor-jose4j", "floor-jdom2", "floor-guava",
+]
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
