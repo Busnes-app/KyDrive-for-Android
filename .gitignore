@@ -13,3 +13,6 @@ captures/
 keystore.properties
 .claude/
 .DS_Store
+
+# Jazzer fuzzing mode writes its working corpus here.
+app/.cifuzz-corpus/
