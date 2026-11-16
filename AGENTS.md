@@ -123,6 +123,12 @@ change the server must make goes in a separate `kydrive-server` PR.
 - `FLAG_SECURE` on every screen, except debug builds with `-PallowScreenshots=true`.
   `KeyboardPrivacy` on every text field. No `android.util.Log` in main sources.
   `allowBackup=false`, and the data-extraction rules exclude every domain.
+- The app lock gates the UI only; background work keeps the token. The PIN is 8–12 digits,
+  stored as PBKDF2 mixed with a non-exportable Keystore HMAC key, and every PIN check goes
+  through `AppLock.attempt` (delay ladder, erase after 30 wrong PINs by default). Turning
+  the lock off or weakening it asks for the PIN. Biometric unlock is strong-only and bound to
+  a key that a new enrolment invalidates. Locking ends every file handed to another app, and
+  `OpenProvider` serves nothing while locked. A wipe removes the lock with everything else.
 - The default build has no Google Play Services and no proprietary SDKs, so F-Droid can
   ship it. No analytics and no crash SDK.
 - The wire layer is `org.kysecurity.drive.core`: no Android imports, so iOS can mirror it.

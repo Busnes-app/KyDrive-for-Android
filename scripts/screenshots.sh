@@ -144,6 +144,22 @@ for form in phone tablet; do
     shot workspace "Shared plan.pdf"
     tap Settings
     shot settings "Unlink this phone"
+    # App lock: choose a PIN, see its settings, then a restart asks for it.
+    tap "Lock KyDrive with a PIN"
+    shot pin "8 to 12 digits"
+    tap "New PIN"
+    "$adb" -s "$serial" shell input text 73915062
+    tap "New PIN again"
+    "$adb" -s "$serial" shell input text 73915062
+    tap OK
+    shot lock "Lock after leaving the app"
+    "$adb" -s "$serial" shell am force-stop org.kysecurity.drive
+    "$adb" -s "$serial" shell am start -W -n org.kysecurity.drive/.MainActivity > /dev/null
+    shot unlock "KyDrive is locked"
+    tap PIN
+    "$adb" -s "$serial" shell input text 73915062
+    tap Unlock
+    shot unlocked "Budget 2026.xlsx"
   done
 
   "$adb" -s "$serial" emu kill > /dev/null || true

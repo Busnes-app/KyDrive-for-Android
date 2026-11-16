@@ -4,6 +4,8 @@
 
     <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Biometric unlock of the app lock; a normal permission, granted at install. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- The camera scans the link code; the app works without one only to show this. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
@@ -29,6 +31,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The PIN prompt; singleTop so screens locking at once share one. -->
+        <activity
+            android:name=".UnlockActivity"
+            android:exported="false"
+            android:launchMode="singleTop" />
 
         <activity
             android:name=".SettingsActivity"

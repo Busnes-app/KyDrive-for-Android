@@ -6,6 +6,7 @@ import android.security.keystore.KeyProperties
 import android.security.keystore.StrongBoxUnavailableException
 import org.json.JSONObject
 import org.kysecurity.drive.core.Api
+import org.kysecurity.drive.lock.Lock
 import java.io.File
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -64,6 +65,7 @@ class SessionStore(context: Context) {
     fun wipe() {
         marker.createNewFile()
         OpenProvider.forget()
+        Lock.forget(app)
         val ks = keyStore()
         for (alias in ks.aliases().toList()) ks.deleteEntry(alias)
         app.cacheDir.listFiles()?.forEach { it.deleteRecursively() }

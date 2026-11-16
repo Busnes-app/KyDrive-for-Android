@@ -19,6 +19,7 @@ import org.kysecurity.drive.core.ApiError
 import org.kysecurity.drive.core.Drive
 import org.kysecurity.drive.core.FileItem
 import org.kysecurity.drive.core.RangeReader
+import org.kysecurity.drive.lock.Lock
 import java.io.FileNotFoundException
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -32,10 +33,11 @@ import java.util.concurrent.ConcurrentHashMap
 class OpenProvider : ContentProvider() {
     override fun onCreate() = true
 
-    override fun getType(uri: Uri): String? = opened[uri.lastPathSegment]?.let { mimeType(it.file.name) }
+    // A locked app hands nothing out: not a file, nor even its name or type.
+    override fun getType(uri: Uri): String? = live(uri)?.let { mimeType(it.file.name) }
 
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor? {
-        val o = opened[uri.lastPathSegment] ?: return null
+        val o = live(uri) ?: return null
         val cols = projection ?: arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)
         return MatrixCursor(cols, 1).apply {
             addRow(cols.map { if (it == OpenableColumns.SIZE) o.file.size else if (it == OpenableColumns.DISPLAY_NAME) o.file.name else null })
@@ -43,13 +45,13 @@ class OpenProvider : ContentProvider() {
     }
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
-        val o = opened[uri.lastPathSegment] ?: throw FileNotFoundException()
+        val o = live(uri) ?: throw FileNotFoundException()
         if (mode != "r") throw SecurityException("read only")
         val app = context!!.applicationContext
         val drive = Drive(o.session.api())
         // The generation recorded when the URI was made: a wipe at any point after that,
         // even between the lookup above and here, leaves this reader dead.
-        val range = RangeReader(o.file.size, WINDOW, { generation == o.generation }) { off, len ->
+        val range = RangeReader(o.file.size, WINDOW, { generation == o.generation && !Lock.app.isLocked() }) { off, len ->
             try {
                 drive.range(o.file, off, len)
             } catch (e: ApiError) {
@@ -61,6 +63,8 @@ class OpenProvider : ContentProvider() {
         val storage = app.getSystemService(StorageManager::class.java)
         return storage.openProxyFileDescriptor(ParcelFileDescriptor.MODE_READ_ONLY, Reader(o.file.size, range), handler)
     }
+
+    private fun live(uri: Uri): Opened? = if (Lock.app.isLocked()) null else opened[uri.lastPathSegment]
 
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
     override fun delete(uri: Uri, selection: String?, args: Array<out String>?) = 0
