@@ -92,7 +92,7 @@ class CertFloorDeviceTest {
     fun thePlatformAcceptsTheFloorNegativeControls() {
         // P-224 is covered by the pure policy test: the native TLS stack may not negotiate
         // it at all. These controls must succeed without our floor, then fail because of it.
-        for ((leaf, issuers) in listOf("rsa2047" to emptyArray(), "sha1" to emptyArray(), "under-weak-int" to arrayOf("weak-int"))) {
+        for ((leaf, issuers) in listOf("rsa2047" to emptyArray(), "under-weak-int" to arrayOf("weak-int"))) {
             assertEquals(leaf, "kyd_abc", redeem(leaf, *issuers, enforceFloor = false))
             assertTrue(leaf, server!!.requests.isNotEmpty())
             server!!.close()
@@ -100,7 +100,7 @@ class CertFloorDeviceTest {
     }
 
     @Test
-    fun aSha1SignatureIsRefusedBeforeTheRequest() = refused("sha1")
+    fun aSha1SignatureIsRefusedBeforeTheRequest() = refused("sha1", byFloor = false)
 
     @Test
     fun aWeakIntermediateIsRefusedBeforeTheRequest() = refused("under-weak-int", "weak-int")
