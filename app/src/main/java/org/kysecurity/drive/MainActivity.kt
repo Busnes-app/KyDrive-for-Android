@@ -403,19 +403,24 @@ class MainActivity : SecureActivity() {
         render()
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
+                var made: DeviceSigningKey? = null
                 runCatching {
-                    val linked = Api(link.origin).redeem(link.code, deviceName(this@MainActivity))
-                    val account = Api(link.origin, linked.token).account()
+                    // The key exists before the code is spent, so the token is never usable unsigned.
+                    val key = DeviceSigningKey.create().also { made = it }
+                    val linked = Api(link.origin, key = key).redeem(link.code, deviceName(this@MainActivity))
+                    val account = Api(link.origin, linked.token, key).account()
                     if (account.userId != linked.userId) throw IOException("token answered for another account")
-                    val next = Session(link.origin, linked.token, linked.userId, linked.user, deviceName(this@MainActivity))
+                    val next = Session(link.origin, linked.token, linked.userId, linked.user, deviceName(this@MainActivity), key.alias)
                     // A signed-out phone keeps its cache only for the same account on the same server.
                     if (existing != null && (existing.origin != next.origin || existing.userId != next.userId)) {
                         runCatching { next.api().unlink() }
+                        DeviceSigningKey.delete(key.alias)
                         return@runCatching null
                     }
                     store.save(next)
+                    existing?.keyAlias?.takeIf { it.isNotEmpty() && it != key.alias }?.let(DeviceSigningKey::delete)
                     next
-                }
+                }.onFailure { made?.let { DeviceSigningKey.delete(it.alias) } }
             }
             linking = false
             result.onSuccess { next ->
