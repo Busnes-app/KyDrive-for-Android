@@ -1,5 +1,8 @@
 # KyDrive for Android
 
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16826/badge)](https://www.bestpractices.dev/projects/16826)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Busnes-app/KyDrive-for-Android/badge)](https://scorecard.dev/viewer/?uri=github.com/Busnes-app/KyDrive-for-Android)
+
 The Android app for [KyDrive](https://github.com/Busnes-app/kydrive-server), a self-hosted
 file server. Browse, preview, upload and share your files, and back up your photos, from
 your phone.
