@@ -127,7 +127,11 @@ change the server must make goes in a separate `kydrive-server` PR.
   stored as PBKDF2 mixed with a non-exportable Keystore HMAC key, and every PIN check goes
   through `AppLock.attempt` (delay ladder, erase after 30 wrong PINs by default). Turning
   the lock off or weakening it asks for the PIN. Biometric unlock is strong-only and bound to
-  a key that a new enrolment invalidates. Locking ends every file handed to another app, and
+  a key that a new enrolment invalidates. PIN verification and setup completion are accepted only while
+  foregrounded and in the lifecycle generation that started them; backgrounding or explicit
+  locking invalidates an in-flight PIN check or setup. Biometric completion while backgrounded
+  remains locked. Lifecycle transitions never wait for
+  PIN derivation, and relock callbacks run outside the lifecycle monitor. Locking ends every file handed to another app, and
   `OpenProvider` serves nothing while locked. A wipe removes the lock with everything else.
 - The default build has no Google Play Services and no proprietary SDKs, so F-Droid can
   ship it. No analytics and no crash SDK.

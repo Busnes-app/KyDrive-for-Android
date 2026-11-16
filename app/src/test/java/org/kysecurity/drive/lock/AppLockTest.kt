@@ -5,6 +5,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 class AppLockTest {
     private class Memory : LockState {
@@ -68,6 +72,7 @@ class AppLockTest {
         assertTrue(lock.isLocked())
         lock.lockNow()
         assertEquals(1, locks) // open files were ended once, when it locked
+        lock.foregrounded()
         lock.attempt(good)
         lock.lockNow()
         assertEquals(2, locks)
@@ -183,4 +188,58 @@ class AppLockTest {
         assertFalse(LockoutPolicy.weakens(30, 10))
         assertFalse(LockoutPolicy.weakens(null, 30))
     }
+    @Test(timeout = 30_000)
+    fun authenticationFinishingAfterBackgroundingCannotUnlock() = backgroundCompletion(setup = false)
+
+    @Test(timeout = 30_000)
+    fun pinSetupFinishingAfterBackgroundingCannotUnlock() = backgroundCompletion(setup = true)
+
+    @Test(timeout = 30_000)
+    fun returningBeforeVerificationFinishesDoesNotReviveTheOldAttempt() = backgroundCompletion(setup = false, reenter = true)
+
+    private fun backgroundCompletion(setup: Boolean, reenter: Boolean = false) {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val blocking = AtomicBoolean(false)
+        val memory = Memory()
+        val app = AppLock(memory, Pepper { raw ->
+            if (blocking.get()) {
+                entered.countDown()
+                check(release.await(10, TimeUnit.SECONDS))
+            }
+            raw.clone()
+        }, { now }, {})
+        if (!setup) app.setPin(good)
+        app.lockNow()
+        blocking.set(true)
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            val result = executor.submit {
+                if (setup) app.setPin(good) else assertEquals(Attempt.Success, app.attempt(good))
+            }
+            assertTrue(entered.await(10, TimeUnit.SECONDS))
+            app.backgrounded()
+            if (reenter) app.foregrounded()
+            release.countDown()
+            result.get(10, TimeUnit.SECONDS)
+            now += AppLock.DEFAULT_GRACE + 1
+            app.foregrounded()
+            assertTrue("setup=$setup, reenter=$reenter", app.isLocked())
+        } finally {
+            release.countDown()
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun biometricCompletionInBackgroundCannotUnlock() {
+        lock.setPin(good)
+        lock.lockNow()
+        lock.backgrounded()
+        assertEquals(Attempt.Success, lock.unlockWithBiometric())
+        now += AppLock.DEFAULT_GRACE + 1
+        lock.foregrounded()
+        assertTrue(lock.isLocked())
+    }
+
 }

@@ -161,7 +161,8 @@ for form in phone tablet; do
     shot unlock "KyDrive is locked"
     tap PIN
     "$adb" -s "$serial" shell input text 73915062
-    tap Unlock
+    # Enter, not the button: on a landscape tablet the keyboard covers it.
+    key ENTER
     shot unlocked "Budget 2026.xlsx"
   done
 

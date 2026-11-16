@@ -50,6 +50,11 @@ class AppLock(
     /** Runs each time the app goes from unlocked to locked, on whichever thread noticed. */
     private val onLock: () -> Unit = {},
 ) {
+    // PIN derivation holds this object's monitor; lifecycle transitions use a separate, short lock.
+    private val visibility = Any()
+    private var foreground = true
+    private var visibilityVersion = 0L
+
     @Volatile private var unlocked = false
 
     @Volatile private var deadline = 0L
@@ -70,30 +75,59 @@ class AppLock(
         get() = state.wipeAfter
         set(v) { state.wipeAfter = v }
 
-    fun isLocked(): Boolean {
-        if (!enabled) return false
-        val d = deadline
-        if (unlocked && d != 0L && clock() >= d) lockNow()
-        return !unlocked
+    private fun updateLockState(change: () -> Unit) {
+        val relocked = synchronized(visibility) {
+            val was = unlocked
+            change()
+            was && !unlocked
+        }
+        // OpenProvider may take its own locks; callbacks run outside the visibility monitor.
+        if (relocked) onLock()
     }
 
-    fun lockNow() {
-        val was = unlocked
+    private fun authenticationStarted(): Long = synchronized(visibility) { visibilityVersion }
+
+    private fun authenticated(version: Long) = updateLockState {
+        unlocked = foreground && version == visibilityVersion
+        deadline = 0
+    }
+
+    fun isLocked(): Boolean {
+        updateLockState {
+            if (unlocked && deadline != 0L && clock() >= deadline) {
+                unlocked = false
+                deadline = 0
+            }
+        }
+        return enabled && !unlocked
+    }
+
+    fun lockNow() = updateLockState {
+        visibilityVersion++
         unlocked = false
         deadline = 0
-        if (was) onLock()
     }
 
-    /** The last screen went away: lock now, or when the grace period ends. */
-    fun backgrounded() {
-        if (!enabled || !unlocked) return
-        val grace = state.graceMillis
-        if (grace <= 0) lockNow() else deadline = clock() + grace
+    /** Record leaving even while locked: an outstanding authentication may finish later. */
+    fun backgrounded() = updateLockState {
+        foreground = false
+        visibilityVersion++
+        if (enabled && unlocked) {
+            val grace = state.graceMillis
+            if (grace <= 0) {
+                unlocked = false
+                deadline = 0
+            } else {
+                deadline = clock() + grace
+            }
+        }
     }
 
     /** A screen came back: an expired grace period locks, an unexpired one is cancelled. */
-    fun foregrounded() {
-        if (!isLocked()) deadline = 0
+    fun foregrounded() = updateLockState {
+        foreground = true
+        if (unlocked && deadline != 0L && clock() >= deadline) unlocked = false
+        deadline = 0
     }
 
     @Synchronized
@@ -101,6 +135,7 @@ class AppLock(
         val wait = remainingLockout()
         if (wait > 0) return Attempt.Rejected(wait)
         val record = state.pin ?: return Attempt.Success
+        val version = authenticationStarted()
         val ok = try {
             matches(pin, record)
         } catch (_: Exception) {
@@ -108,15 +143,14 @@ class AppLock(
         }
         if (ok) {
             state.failedAttempts = 0
-            unlocked = true
-            deadline = 0
+            authenticated(version)
             return Attempt.Success
         }
         val attempts = state.failedAttempts + 1
         state.failedAttempts = attempts
         if (LockoutPolicy.shouldWipe(attempts, state.wipeAfter)) {
             wipe()
-            unlocked = false
+            lockNow()
             return Attempt.Wiped
         }
         val delay = LockoutPolicy.delayFor(attempts)
@@ -133,14 +167,14 @@ class AppLock(
         val wait = remainingLockout()
         if (wait > 0) return Attempt.Rejected(wait)
         state.failedAttempts = 0
-        unlocked = true
-        deadline = 0
+        authenticated(authenticationStarted())
         return Attempt.Success
     }
 
     /** Sets or changes the PIN. Callers check [PinPolicy] and, for a change, the old PIN first. */
     @Synchronized
     fun setPin(pin: CharArray) {
+        val version = authenticationStarted()
         val turningOn = state.pin == null
         val salt = ByteArray(16).also { random.nextBytes(it) }
         state.pin = PinRecord(salt, derive(pin, salt))
@@ -150,7 +184,7 @@ class AppLock(
             state.wipeAfter = LockoutPolicy.DEFAULT_WIPE
             state.graceMillis = DEFAULT_GRACE
         }
-        unlocked = true
+        authenticated(version)
     }
 
     /** Turns the lock off. Callers verify the PIN through [attempt] first. */

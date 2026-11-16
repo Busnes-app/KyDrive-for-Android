@@ -1,6 +1,7 @@
 package org.kysecurity.drive
 
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
@@ -22,7 +23,11 @@ class UnlockActivity : SecureActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_unlock)
         findViewById<FrameLayout>(R.id.field).addView(field)
-        field.setOnEditorActionListener { _, action, _ -> (action == EditorInfo.IME_ACTION_DONE).also { if (it) unlock() } }
+        // Done on the on-screen keyboard, or Enter on a hardware one.
+        field.setOnEditorActionListener { _, action, event ->
+            val enter = event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN
+            (action == EditorInfo.IME_ACTION_DONE || enter).also { if (it) unlock() }
+        }
         findViewById<View>(R.id.unlock).setOnClickListener { unlock() }
         findViewById<View>(R.id.biometric).setOnClickListener { biometric() }
         // Back leaves the app rather than reaching the locked screen beneath.
