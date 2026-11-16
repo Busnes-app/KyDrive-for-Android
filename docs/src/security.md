@@ -36,6 +36,14 @@ signature algorithms. Ed25519 keys and RSASSA-PSS certificate signatures are cur
 refused because this policy does not measure them; that refusal is not a claim that
 those algorithms are weak. Operators need a certificate chain the policy supports.
 
+The linked session also pins the server certificate's public key. A QR link can supply
+that pin; otherwise it is learned from the successful linking exchange. Existing sessions
+learn it on their next successful request. A certificate renewal can update the pin only
+with a fresh statement signed by the server identity key learned over the pinned connection.
+The rollover lookup sends no device token or request signature and still enforces system
+trust and certificate strength. Without that identity key, a changed certificate requires
+linking again. There is no switch to bypass a mismatched pin.
+
 Each linked-device request is signed using its non-exportable P-256 key and SHA-256.
 The signed request format binds origin, method, target, timestamp, nonce, selected
 state-changing headers and body digest. The server enforces device permissions and

@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
  */
 class LinkUriFuzzTest {
     private static final Pattern CODE = Pattern.compile("[A-Za-z0-9_-]{43}");
+    private static final Pattern PIN = Pattern.compile("sha256/[A-Za-z0-9+/]{43}=");
 
     @FuzzTest(maxDuration = "60s")
     void parse(FuzzedDataProvider data) throws Exception {
@@ -25,7 +26,9 @@ class LinkUriFuzzTest {
         check(origin.getRawPath() == null || origin.getRawPath().isEmpty(), "origin has a path");
         check(origin.getHost() != null && origin.getHost().equals(origin.getHost().toLowerCase(java.util.Locale.ROOT)), "host not lowercase");
         check(CODE.matcher(link.getCode()).matches(), "malformed code");
+        check(link.getPin() == null || PIN.matcher(link.getPin()).matches(), "malformed pin");
         String again = "kydrive://link?srv=" + URLEncoder.encode(link.getOrigin(), StandardCharsets.UTF_8) + "&code=" + link.getCode();
+        if (link.getPin() != null) again += "&pin=" + URLEncoder.encode(link.getPin(), StandardCharsets.UTF_8);
         check(link.equals(LinkUri.Companion.parse(again)), "not stable when re-encoded");
     }
 

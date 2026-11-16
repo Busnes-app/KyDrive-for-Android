@@ -20,6 +20,10 @@
 - Certificate strength checks during the HTTPS handshake: RSA 2048 / EC 256 minimum
   keys and SHA-2 verified signatures across the platform-validated chain, including
   the anchor's key. Only the final self-issued anchor's unused signature is exempt.
+- TLS leaf public-key pinning with signed certificate rollover on top of system trust
+  and the certificate-strength floor. Upgrading an existing session learns its pin on
+  the next successful request; a changed certificate without the learned server identity
+  key requires relinking. Background transfers avoid retaining their Activity.
 - A 14-chapter mdBook manual, contributor guide and documentation build/link checks in CI.
 
 No user release has been published. Upgrading between development commits may require

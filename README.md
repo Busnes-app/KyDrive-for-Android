@@ -12,7 +12,8 @@ This is pre-release software. The [documentation book](docs/src/introduction.md)
 photo backup, persistent offline copies and a DocumentsProvider are planned.
 
 - No Google Play Services, analytics or crash reporting.
-- TLS only, against the system's certificate authorities.
+- TLS only, against the system's certificate authorities, with the server's certificate key
+  pinned on top. Renewals roll over through a statement the server signs, without a re-link.
 - Screens are hidden from screenshots and the recent-apps view.
 - Optional PIN and strong biometric app lock; device keys stay in Android Keystore.
 

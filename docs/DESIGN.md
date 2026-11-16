@@ -94,7 +94,8 @@ There is no sign-in-on-the-phone path. Linking needs the web app open on a secon
   in `noBackupFilesDir`.
 - **No user authentication on that key.** Background work (backup, the DocumentsProvider)
   has to use the token while the app is locked. The app lock gates the UI.
-- **Saved alongside the token:** the server origin, user ID, user name and device name.
+- **Saved alongside the token:** the server origin, user ID, user name, device name, the TLS
+  leaf pin and the server's identity key (section 2.1). A wipe drops them with the token.
   These are not secrets.
 - **Identity check.** After linking, `GET /api/drive/device` must return the same
   `user_id`. Re-linking to a different account is refused, as the desktop does.
@@ -112,7 +113,7 @@ There is no sign-in-on-the-phone path. Linking needs the web app open on a secon
 
 | Threat | Defence |
 |---|---|
-| Network attacker | TLS only. Cleartext is off and only system CAs are trusted; there is no user-CA option (owner decision). `core/Tls.kt` and `DeviceTls.kt` enforce RSA ≥ 2048, EC ≥ 256 and SHA-2 verified signatures inside the handshake over the platform-validated chain. The final trust anchor's key is measured; its unused self-signature is exempt. Redirects are refused. TLS leaf pinning with signed rollover is separate pending work. |
+| Network attacker | TLS only. Cleartext is off and only system CAs are trusted; there is no user-CA option (owner decision). `core/Tls.kt` and `DeviceTls.kt` enforce RSA ≥ 2048, EC ≥ 256 and SHA-2 verified signatures inside the handshake over the platform-validated chain. The final trust anchor's key is measured; its unused self-signature is exempt. Redirects are refused. On top of that the session pins the server's leaf (section 2.1). |
 | Lost or stolen phone, unlocked | App lock (PIN or strong biometric) after a 30 s grace period, using KyPost's `LockedActivity` and `LockoutPolicy`. The user revokes the phone from the web, and the next request wipes it. |
 | Lost phone, attacker reads storage (rooted, forensics) | The token and the cache are encrypted under Keystore keys that never leave the device. Unlinking deletes the keys first (crypto-shred), then the files. |
 | Another app on the phone | Exported components are limited to the launcher activity, the share target, the camera-backup settings entry, and the DocumentsProvider (`MANAGE_DOCUMENTS`, so only the system picker binds). A build gate checks the merged manifest against that allowlist, as KyPost's does. |
@@ -122,7 +123,26 @@ There is no sign-in-on-the-phone path. Linking needs the web app open on a secon
 | Leaks through logs and backups | No `android.util.Log` in main sources (source-rule test). File names, tokens and URLs never reach logs or crash reports, and there is no crash SDK. `allowBackup=false`, and the data-extraction rules exclude every domain. |
 | Compromised or malicious server | The server already sees everything (it is not end-to-end encrypted). The app treats names from the server as untrusted: no path joins, and content is shown with the server's own type checks. The DocumentsProvider never resolves names to paths. |
 | A stolen phone widening access | It can't. The device token cannot share, grant, mint credentials or create guest links (server-enforced). |
-| Token read in transit (a certificate the phone trusts, on its path) | Every request is signed by a non-exportable Keystore P-256 key enrolled at linking (`kydrive-request-v1`: origin, method, URI, date, nonce, state-changing headers, body digest), so the token alone is refused and a captured request cannot be replayed. The interceptor still reads file bytes in transit until the TLS pin lands. |
+| Interceptor holding a certificate the phone trusts | The leaf pin fails its handshake before any header is written, so it reads and alters nothing (section 2.1). Every request is also signed by a non-exportable Keystore P-256 key enrolled at linking (`kydrive-request-v1`: origin, method, URI, date, nonce, state-changing headers, body digest), so a token taken some other way is refused alone and a captured request cannot be replayed. Not defended: an interceptor already in place at linking, or at the first request of a phone linked before pinning (trust on first use), unless the QR code carries `pin=`. |
+
+### 2.1 TLS leaf pin with signed rollover (owner, 2026-11-16)
+
+- The pin is `sha256/` + base64 of SHA-256 of the leaf's SubjectPublicKeyInfo, stored in the
+  encrypted session. It names the leaf, never an issuer.
+- Linking pins the QR link's `pin=` when present, else the leaf the redemption meets. A phone
+  linked before pinning pins the leaf of its next successful request.
+- The server holds a long-term Ed25519 identity key. The phone learns it once, over the
+  pinned leaf, from the token or `GET /api/drive/device` answer, and never replaces it: a
+  leaf's key lives on the TLS proxy, and holding it must not grant later rollovers.
+- Certificates renew about every 30 days. On a mismatch the phone fetches
+  `GET /api/devices/tls-pin` once, with system trust and no credential, and repins only if
+  the identity key signed `kydrive-tls-pin/1\n<host>\n<pin>\n<issued_at>` for the leaf that
+  fetch met, for this host, within 24 h of the phone's clock, newer than the statement
+  behind the current pin (or, for a first pin, the moment it was set, so a statement signed
+  before linking for a since-retired leaf cannot roll the phone back), and for a leaf not
+  already pinned. Then the failed request is
+  retried once. An interceptor presents its own leaf, which the server never signs.
+- Without an identity key (an older server), a mismatch fails closed: link again by QR.
 
 **Not defended:**
 
@@ -288,7 +308,8 @@ Settings, which has these sections:
   metadata.
 - **One flavour, no Google Play Services.** The F-Droid build and the GitHub build are the
   same APK. A Play flavour can be added later if it's ever needed (YAGNI).
-- **Dependencies:** zxing-android-embedded and AndroidX (appcompat, material). Tink, work,
+- **Dependencies:** zxing-android-embedded, AndroidX (appcompat, material) and BouncyCastle
+  `bcprov` for Ed25519 (JCA has EdDSA only from API 33; R8 keeps about 58 KB). Tink, work,
   window, biometric and browser come with the features that need them. HTTP is the platform's
   `HttpURLConnection` and JSON the platform's `org.json`: the API is small enough that OkHttp
   and kotlinx-serialization would add size and verification surface for nothing.
@@ -333,3 +354,6 @@ Settings, which has these sections:
    "Linked: `<name>`" with Revoke. There is no confirm-a-number step.
 4. User-installed CAs: never trusted, and there is no option to trust them. Private-CA
    servers need a publicly trusted certificate.
+5. (2026-11-16) The TLS leaf is pinned on top of system trust, and renewals roll over through
+   a statement signed by the server's identity key, so a renewal never forces a re-link
+   (section 2.1).

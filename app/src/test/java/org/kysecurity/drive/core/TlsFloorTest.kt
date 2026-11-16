@@ -55,8 +55,8 @@ class TlsFloorTest {
         return floorTls(base) { chain, authType -> base.checkServerTrusted(chain, authType); chain.toList() }
     }
 
-    private fun redeem(port: Int, tls: Tls?) =
-        Api("https://localhost:$port", tls = tls).redeem("C0de", "Ana's Pixel")
+    private fun redeem(port: Int, tls: Tls?, pins: PinStore = MemoryPins()) =
+        Api("https://localhost:$port", pins = pins, tls = tls).redeem("C0de", "Ana's Pixel")
 
     private fun Throwable.blamesTheFloor(): Boolean =
         generateSequence(this as Throwable?) { it.cause }.any { it.message.orEmpty().contains("KyDrive refuses") }
@@ -66,6 +66,23 @@ class TlsFloorTest {
         val linked = redeem(start("strong"), floor("ca"))
         assertEquals("kyd_abc", linked.token)
         assertTrue(seen.single(), seen.single().startsWith("POST /api/devices/token"))
+    }
+
+    @Test
+    fun aMatchingPinCannotAuthorizeAWeakCertificate() {
+        val pins = MemoryPins(TlsPin(TlsPins.of(Fixtures.cert("rsa2047")), TlsPinTest.KEY))
+        val e = assertThrows(IOException::class.java) { redeem(start("rsa2047"), floor("ca"), pins) }
+        assertTrue(e.stackTraceToString(), e.blamesTheFloor())
+        assertFalse(e.isPinMismatch())
+        assertEquals(emptyList<String>(), seen)
+    }
+
+    @Test
+    fun aStrongCertificateStillNeedsThePinnedLeaf() {
+        val pins = MemoryPins(TlsPin(TlsPins.of(Fixtures.cert("rsa2048"))))
+        val e = assertThrows(IOException::class.java) { redeem(start("strong"), floor("ca"), pins) }
+        assertTrue(e.stackTraceToString(), e.isPinMismatch())
+        assertEquals(emptyList<String>(), seen)
     }
 
     @Test

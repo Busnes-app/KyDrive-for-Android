@@ -63,6 +63,7 @@
     <string name="link_refused">KyDrive refused to link this phone (error %1$d).</string>
     <string name="error_unreachable">Could not reach %1$s. Check the connection and try again.</string>
     <string name="error_certificate">This phone does not trust %1$s\'s certificate.</string>
+    <string name="error_pin">%1$s presented a certificate this phone was not linked to, and could not prove it is the same server. Show a new code on a computer and scan it to link again.</string>
     <string name="revoked">This phone was unlinked from KyDrive, and everything it held has been erased.</string>
 
     <string name="settings_account">Account</string>

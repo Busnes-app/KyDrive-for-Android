@@ -11,6 +11,11 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.kysecurity.drive.core.Api
+import org.kysecurity.drive.core.MemoryPins
+import org.kysecurity.drive.core.PinStore
+import org.kysecurity.drive.core.TlsPin
+import org.kysecurity.drive.core.TlsPins
+import org.kysecurity.drive.core.isPinMismatch
 import org.kysecurity.drive.core.Tls
 import java.io.Closeable
 import java.io.IOException
@@ -63,11 +68,11 @@ class CertFloorDeviceTest {
         server?.close()
     }
 
-    private fun redeem(leaf: String, vararg issuers: String, enforceFloor: Boolean = true): String {
+    private fun redeem(leaf: String, vararg issuers: String, enforceFloor: Boolean = true, pins: PinStore = MemoryPins()): String {
         val running = FixtureServer(leaf, *issuers).also { server = it }
         // The baseline alone omits the floor. It still uses Android's default system/NSC
         // trust and hostname checks, and proves the negative controls reach our policy.
-        val api = if (enforceFloor) driveApi(running.origin) else Api(running.origin, tls = Tls { })
+        val api = if (enforceFloor) driveApi(running.origin, pins = pins) else Api(running.origin, tls = Tls { _, _ -> })
         return api.redeem(CODE, "Ana's Pixel").token
     }
 
@@ -83,6 +88,12 @@ class CertFloorDeviceTest {
     fun aStrongCertificateLinks() {
         assertEquals("kyd_abc", redeem("strong"))
         assertTrue(server!!.requests.single(), server!!.requests.single().startsWith("POST /api/devices/token"))
+        server!!.close()
+        // The production adapter must enforce pinning as well as strength on Android.
+        val pins = MemoryPins(TlsPin(TlsPins.of(cert("rsa2048"))))
+        val failure = assertThrows(IOException::class.java) { redeem("strong", pins = pins) }
+        assertTrue(failure.stackTraceToString(), failure.isPinMismatch())
+        assertEquals(emptyList<String>(), server!!.requests)
     }
 
     @Test

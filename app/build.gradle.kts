@@ -93,6 +93,8 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.zxing.embedded)
+    // Ed25519 for the signed TLS pin rollover: JCA has EdDSA only from API 33.
+    implementation(libs.bouncycastle.bcprov)
     androidTestImplementation("androidx.test:core:1.7.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
@@ -103,6 +105,7 @@ dependencies {
     testRuntimeOnly(libs.junit.vintage)
     testRuntimeOnly(libs.junit.launcher)
     testImplementation(libs.org.json)
+    testImplementation(libs.bouncycastle.bcpkix)
     // Lint runs from its own classpath, which the root buildscript floors do not reach.
     constraints { libs.bundles.build.tool.floors.get().forEach { add("androidLintTool", it) } }
 }

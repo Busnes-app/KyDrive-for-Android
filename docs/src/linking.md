@@ -20,7 +20,8 @@ to a bug report: anyone who redeems it in time may link a device.
 
 The app generates a non-exportable signing key before redeeming the code and verifies
 that the returned device token belongs to the account the server identified. It then
-stores the encrypted session on the phone. Scanning a code without confirming and
+stores the encrypted session and pins the server certificate's public key on the phone.
+A pin included in the QR code must match during the exchange. Scanning a code without confirming and
 successfully completing the exchange does not link a phone.
 
 ## Linking again

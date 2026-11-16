@@ -9,6 +9,7 @@
 | Phone holds another account's files | Unlink in Settings before switching account or server |
 | Could not reach the server | Check Wi-Fi/mobile data, LAN/VPN requirements, DNS and the exact HTTPS hostname |
 | Phone does not trust the certificate | Ask the operator to check validity dates, hostname and complete certificate chain to Android system CAs; the app also enforces its certificate-strength policy |
+| Server could not prove it is the same server | Check the hostname and contact the operator; certificate rollover needs the server identity key and a fresh signed statement. Link again only after confirming the server |
 | Server refused to link this phone | Check server compatibility and its device quota; provide the error number to the operator |
 | Camera cannot scan | Grant camera permission in Android settings, improve lighting and show a fresh unobstructed code |
 

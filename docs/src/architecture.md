@@ -19,17 +19,31 @@ server source defines the API; the Android app does not define a separate wire p
 
 The QR payload is `kydrive://link?srv=<encoded-origin>&code=<code>`. `srv` must be a bare
 HTTPS origin with a hostname, optional port, no user information, query or fragment.
-`code` is exactly 43 base64url characters. Duplicate/unknown parameters, malformed
-escapes and unsupported origins are refused before a network request.
+`code` is exactly 43 base64url characters. An optional `pin=sha256/<base64>` supplies
+the expected leaf public-key hash; encode it as a query value, including any `+` character.
+Duplicate/unknown parameters, malformed escapes and unsupported origins are refused
+before a network request.
 
 `POST /api/devices/token` sends form fields `grant=qr`, `code`, `name`, `platform=android`
 and `publicKey` (standard-base64 SPKI DER). The response supplies a `kyd_` token,
-`user_id` and `user`. `GET /api/drive/device` must identify the same account before
+`user_id` and `user`, and may supply the server's Ed25519 `identity_key`.
+`GET /api/drive/device` may also supply that key and must identify the same account before
 the session is saved. `DELETE /api/devices/self` revokes the current phone.
 
 Never log or place the device token in a URL. The app sends it as `Authorization:
 Bearer …`; request signatures are separate headers. The signature golden vector in
 `app/src/test/resources/device-signing-v1.json` is shared with the server.
+
+## Certificate rollover
+
+All HTTPS connections, including the credential-free `GET /api/devices/tls-pin` lookup,
+pass platform trust and the certificate-strength floor. Credentialed requests also check
+the saved leaf pin inside the same handshake. A pin mismatch permits one lookup and one
+retry; the lookup sends no token or signing headers. `TlsPins.accept` requires a statement
+signed by the stored identity key for the observed leaf and hostname, within 24 hours of
+the phone clock and newer than the saved freshness floor. The identity key is learned
+once over the pinned connection and never replaced. `tls-pin-v1.json` is shared with the
+server; a missing identity key requires relinking after a certificate change.
 
 ## File operations
 

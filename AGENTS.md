@@ -108,7 +108,7 @@ change the server must make goes in a separate `kydrive-server` PR.
 
 ## Local Contracts
 - Linking is by QR code only (owner, 2026-11-15). The web app shows
-  `kydrive://link?srv=<origin>&code=<code>`. The code is single use, lasts 120 s and
+  `kydrive://link?srv=<origin>&code=<code>`, optionally with `&pin=`. The code is single use, lasts 120 s and
   needs step-up to show. The app redeems it with `POST /api/devices/token`,
   `grant=qr&code=&name=&platform=android`. There is no sign-in on the phone and no
   confirm-a-number step.
@@ -136,10 +136,24 @@ change the server must make goes in a separate `kydrive-server` PR.
   the trust anchor. A key or signature algorithm it cannot measure is refused. A self-signed
   final trust anchor's own self-signature is not measured: nothing verifies it, and system roots still
   carry SHA-1 ones. The floor runs inside the handshake, so a refused chain never carries a
-  request byte, and it only narrows the platform's decision: trust anchors, the network
+  request byte. The same trust manager checks the leaf pin after the floor; SSL contexts
+  are cached only for the current pin, so resumed sessions cannot cross pins. It only narrows
+  the platform's decision: trust anchors, the network
   security config and hostname verification stay the platform's. `driveApi` is the only place
   the app builds an `Api`, so no connection can leave without the floor; an `Api` on an HTTPS
   origin built without one fails before it connects.
+- On top of system trust, each session pins the server's TLS leaf (owner, 2026-11-16):
+  SHA-256 of its SubjectPublicKeyInfo, checked by `core/Tls.kt` after the certificate floor
+  inside the handshake, so a wrong leaf never sees a header. Pin the leaf, never an issuer.
+  Linking pins the QR link's optional `pin=sha256/<base64>`, else the leaf the redemption
+  meets; a session linked earlier pins the leaf of its next 2xx answer. `identity_key`
+  (Ed25519) is learned once, over the pinned leaf, from `POST /api/devices/token` or
+  `GET /api/drive/device`, and never replaced. A renewal is accepted only through
+  `kydrive-tls-pin/1` (KyDrive-server `internal/api/tls_pin.go`;
+  `app/src/test/resources/tls-pin-v1.json` is a byte-for-byte copy of its vector): one
+  credential-free `GET /api/devices/tls-pin`, rules in `TlsPins.accept`, compare-and-swap
+  under the `SessionStore` lock, one retry. Without an identity key a mismatch fails closed
+  and the user links again.
 - `FLAG_SECURE` on every screen, except debug builds with `-PallowScreenshots=true`.
   `KeyboardPrivacy` on every text field. No `android.util.Log` in main sources.
   `allowBackup=false`, and the data-extraction rules exclude every domain.
@@ -158,6 +172,8 @@ change the server must make goes in a separate `kydrive-server` PR.
 - User documentation is the mdBook manual under `docs/`, in the Ky suite's documentation
   format (owner, 2026-11-16); `docs/AGENTS.md` is its contract. A change that alters what a
   user sees or does updates the manual in the same PR.
+- Transfer blocks submitted to process-owned `Work` capture the application context,
+  never an Activity or its views, so uploads and saves may outlive their screen.
 - The look and the Android conventions follow `KyPost-for-Android`: Busnes palettes, the
   adaptive shell with the rail on the right, Activity Embedding and app lock. The
   benchmark is Google Drive.
@@ -179,7 +195,8 @@ change the server must make goes in a separate `kydrive-server` PR.
 - `CertFloorTest` and `TlsFloorTest` cover the floor on the JVM: the policy over each fixture
   chain, and a real HTTPS connection where a refused chain fails inside the handshake and the
   server records no request line. `CertFloorDeviceTest` proves the key-strength floor through
-  `driveApi`; SHA-1 refusal is attributed to Android, and P-224 retains policy-level coverage.
+  `driveApi`, including a strong-chain/wrong-pin refusal; SHA-1 refusal is attributed to
+  Android, and P-224 retains policy-level coverage.
   `ci-tls-floor` runs the device suite on API 36 with
   `-PscreenshotCa=app/src/test/resources/tls/ca.pem` and fails if the tests skipped.
   `scripts/tls-fixtures.sh` regenerates the throwaway certificates in `app/src/test/resources/tls`,
@@ -194,6 +211,8 @@ change the server must make goes in a separate `kydrive-server` PR.
   each fuzz test's inputs in `app/src/test/resources/.../<Class>Inputs/<method>/`; `ci-fuzz`
   fuzzes with `JAZZER_FUZZ=1` for `maxDuration`. Add a finding's input there once fixed.
   `LinkUriFuzzTest` covers the QR link parser, the first untrusted input.
+- `PinnedTlsTest` runs `Api` against a local HTTPS server whose CA only the test trusts and
+  proves a wrong leaf fails the handshake with nothing sent, and the rollover rules end to end.
 - `checkExportedComponents<Variant>` fails unless the merged manifest exports exactly
   `allowedExportedComponents` in `app/build.gradle.kts`.
 - A new or bumped dependency means regenerating `gradle/verification-metadata.xml` with

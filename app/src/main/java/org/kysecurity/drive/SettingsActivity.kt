@@ -132,7 +132,7 @@ class SettingsActivity : SecureActivity() {
     private fun unlink(store: SessionStore, s: Session) {
         findViewById<View>(R.id.unlink).isEnabled = false
         lifecycleScope.launch {
-            val reached = withContext(Dispatchers.IO) { runCatching { s.api().unlink() }.isSuccess.also { store.wipe() } }
+            val reached = withContext(Dispatchers.IO) { runCatching { s.api(this@SettingsActivity).unlink() }.isSuccess.also { store.wipe() } }
             val text = if (reached) getString(R.string.unlink_done) else getString(R.string.unlink_offline, s.host)
             Toast.makeText(applicationContext, text, Toast.LENGTH_LONG).show()
             finish()

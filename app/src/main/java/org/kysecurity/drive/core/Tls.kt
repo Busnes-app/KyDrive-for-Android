@@ -5,12 +5,13 @@ import java.security.cert.X509Certificate
 import java.security.interfaces.ECPublicKey
 import java.security.interfaces.RSAPublicKey
 import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
 
 /** Settles how one HTTPS connection is trusted, before anything is sent over it. */
 fun interface Tls {
-    fun secure(conn: HttpsURLConnection)
+    fun secure(conn: HttpsURLConnection, pin: String?)
 }
 
 /**
@@ -72,21 +73,34 @@ object CertFloor {
  * A [Tls] that applies [CertFloor] to the chain [validate] returns. [validate] is the platform's
  * own trust decision — system CAs, the network security config, expiry, basic constraints — so
  * the floor only narrows what is accepted, and it runs inside the handshake, before the first
- * request byte. Hostname verification is the connection's own and is untouched.
+ * request byte. The leaf pin is checked after the floor; a null pin permits learning or the
+ * credential-free rollover lookup. Hostname verification is the connection's own and is untouched.
  */
 fun floorTls(base: X509TrustManager, validate: (Array<X509Certificate>, String) -> List<X509Certificate>): Tls {
-    val context = SSLContext.getInstance("TLS")
-    context.init(null, arrayOf(FloorTrustManager(base, validate)), null)
-    val factory = context.socketFactory
-    return Tls { it.sslSocketFactory = factory }
+    return object : Tls {
+        // A different pin gets a fresh context: resumed sessions cannot cross pins.
+        @Volatile private var last: Pair<String?, SSLSocketFactory>? = null
+
+        override fun secure(conn: HttpsURLConnection, pin: String?) {
+            val factory = last?.takeIf { it.first == pin }?.second ?: SSLContext.getInstance("TLS").run {
+                init(null, arrayOf(FloorTrustManager(base, validate, pin)), null)
+                socketFactory.also { last = pin to it }
+            }
+            conn.sslSocketFactory = factory
+        }
+    }
 }
 
 private class FloorTrustManager(
     private val base: X509TrustManager,
     private val validate: (Array<X509Certificate>, String) -> List<X509Certificate>,
+    private val pin: String?,
 ) : X509TrustManager {
-    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) =
-        CertFloor.check(validate(chain, authType))
+    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+        val validated = validate(chain, authType)
+        CertFloor.check(validated)
+        if (pin != null && TlsPins.of(validated.first()) != pin) throw PinMismatch()
+    }
 
     override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String): Unit =
         throw CertificateException("KyDrive presents no client certificate")

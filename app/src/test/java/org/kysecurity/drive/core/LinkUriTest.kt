@@ -59,4 +59,24 @@ class LinkUriTest {
             assertNull(text, LinkUri.parse(text))
         }
     }
+
+    @Test
+    fun acceptsAnOptionalLeafPin() {
+        val pin = "sha256/Y7NDZ8IpLOXohWKxDNkLJh8TVXxPrhajRfRkYgJvV5U="
+        val parsed = LinkUri.parse(link("https://drive.example.org") + "&pin=" + URLEncoder.encode(pin, "UTF-8"))
+        assertEquals(LinkUri("https://drive.example.org", code, pin), parsed)
+        assertNull(LinkUri.parse(link("https://drive.example.org"))?.pin)
+    }
+
+    @Test
+    fun refusesAMalformedPin() {
+        for (pin in listOf("", "sha1/Y7NDZ8IpLOXohWKxDNkLJh8TVXxPrhajRfRkYgJvV5U=", "sha256/short=", "sha256/Y7NDZ8IpLOXohWKxDNkLJh8TVXxPrhajRfRkYgJvV5U", "sha256/Y7NDZ8IpLOXohWKxDNkLJh8TVXxPrhajRfRkYgJvV5U=x")) {
+            assertNull(pin, LinkUri.parse(link("https://drive.example.org") + "&pin=" + URLEncoder.encode(pin, "UTF-8")))
+        }
+        // An unescaped '+' decodes to a space, which no pin holds.
+        assertNull(LinkUri.parse(link("https://drive.example.org") + "&pin=sha256/Y7NDZ8IpLOXohWKxDNkLJh8TVXxPrhajRfRkYgJvV5U+="))
+        // At most one pin.
+        val one = "&pin=" + URLEncoder.encode("sha256/Y7NDZ8IpLOXohWKxDNkLJh8TVXxPrhajRfRkYgJvV5U=", "UTF-8")
+        assertNull(LinkUri.parse(link("https://drive.example.org") + one + one))
+    }
 }

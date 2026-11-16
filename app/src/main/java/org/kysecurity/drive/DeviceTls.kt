@@ -3,6 +3,8 @@ package org.kysecurity.drive
 import android.net.http.X509TrustManagerExtensions
 import org.kysecurity.drive.core.Api
 import org.kysecurity.drive.core.CertFloor
+import org.kysecurity.drive.core.MemoryPins
+import org.kysecurity.drive.core.PinStore
 import org.kysecurity.drive.core.DeviceKey
 import org.kysecurity.drive.core.Tls
 import org.kysecurity.drive.core.floorTls
@@ -42,5 +44,5 @@ object DeviceTls {
  * The only place the app builds an [Api]: every connection it makes carries the certificate
  * floor. `SourceRulesTest` keeps it that way.
  */
-fun driveApi(origin: String, token: String? = null, key: DeviceKey? = null): Api =
-    Api(origin, token, key, DeviceTls.of(origin))
+fun driveApi(origin: String, token: String? = null, key: DeviceKey? = null, pins: PinStore = MemoryPins()): Api =
+    Api(origin, token, key, pins, DeviceTls.of(origin))
