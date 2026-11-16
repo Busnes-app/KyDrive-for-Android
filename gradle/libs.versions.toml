@@ -10,6 +10,8 @@ activityKtx = "1.10.1"
 appcompat = "1.8.0"
 material = "1.14.0"
 junit = "4.13.2"
+zxingEmbedded = "4.3.0"
+orgJson = "20260814"
 # Floors for build-tool transitives with published advisories that AGP still requests.
 bouncycastle = "1.86"
 commonsLang3 = "3.21.0"
@@ -24,6 +26,9 @@ androidx-activity-ktx = { group = "androidx.activity", name = "activity-ktx", ve
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+zxing-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingEmbedded" }
+# Android ships org.json; JVM unit tests need the real implementation instead of the stub.
+org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 floor-bcprov = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
 floor-bcpkix = { group = "org.bouncycastle", name = "bcpkix-jdk18on", version.ref = "bouncycastle" }
 floor-bcutil = { group = "org.bouncycastle", name = "bcutil-jdk18on", version.ref = "bouncycastle" }

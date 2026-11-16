@@ -27,12 +27,24 @@ class SourceRulesTest {
         val declared = Regex("""<activity\s[^>]*android:name="\.(\w+)"""").findAll(manifest).map { it.groupValues[1] }.toList()
         assertTrue(declared.isNotEmpty())
         for (name in declared) {
-            val file = sources.single { it.nameWithoutExtension == name }
-            assertTrue("$name must extend SecureActivity", Regex("""class $name\s*:\s*SecureActivity\(\)""").containsMatchIn(file.readText()))
+            val text = sources.single { it.nameWithoutExtension == name }.readText()
+            // zxing's scanner has its own base class, so it secures its window itself.
+            val secure = Regex("""class $name\s*:\s*SecureActivity\(\)""").containsMatchIn(text) ||
+                (name == "SecureCaptureActivity" && Regex("""secureWindow\(window\)\s*super\.onCreate""").containsMatchIn(text))
+            assertTrue("$name must extend SecureActivity", secure)
         }
         // Only SecureActivity itself may extend the AppCompat base directly.
         val direct = sources.filter { Regex(""":\s*AppCompatActivity\(\)""").containsMatchIn(it.readText()) }.map { it.name }
         assertEquals(listOf("SecureActivity.kt"), direct)
+    }
+
+    @Test
+    fun coreHasNoAndroidImports() {
+        // core is the wire layer the iOS app mirrors; it may use java.* and org.json only.
+        val core = sources.filter { it.path.contains("/core/") }
+        assertTrue(core.isNotEmpty())
+        val offenders = core.filter { Regex("""^import (android|androidx|com\.google)\.""", RegexOption.MULTILINE).containsMatchIn(it.readText()) }
+        assertEquals(emptyList<File>(), offenders)
     }
 
     @Test
