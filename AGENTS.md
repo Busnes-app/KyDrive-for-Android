@@ -106,7 +106,7 @@ change the server must make goes in a separate `kydrive-server` PR.
 
 ## Local Contracts
 - Linking is by QR code only (owner, 2026-11-15). The web app shows
-  `kydrive://link?srv=<origin>&code=<code>`. The code is single use, lasts 120 s and
+  `kydrive://link?srv=<origin>&code=<code>`, optionally with `&pin=`. The code is single use, lasts 120 s and
   needs step-up to show. The app redeems it with `POST /api/devices/token`,
   `grant=qr&code=&name=&platform=android`. There is no sign-in on the phone and no
   confirm-a-number step.
@@ -122,11 +122,23 @@ change the server must make goes in a separate `kydrive-server` PR.
 - `device_revoked` and Unlink always wipe: delete the Keystore keys first, then the cache,
   jobs and token. A wipe marker makes the wipe resume after a crash. The phone holds no
   unsaved user work.
-- TLS only, against system CAs only. Never cleartext, never user-installed CAs, with no
-  option to enable either (owner, 2026-11-15). Refuse redirects.
+- TLS only. System CAs validate every connection: never cleartext, never user-installed
+  CAs, with no option to enable either (owner, 2026-11-15). Refuse redirects.
   The one exception is the throwaway CA `scripts/screenshot-server.sh` makes per run,
   trusted through `debug-overrides` only in the debuggable APK built with
   `-PscreenshotCa`. `src/main` and every other build trust system CAs only.
+- On top of system trust, each session pins the server's TLS leaf (owner, 2026-11-16):
+  SHA-256 of its SubjectPublicKeyInfo, checked by `core/TlsPin.kt`'s `PinningTrustManager`
+  inside the handshake, so a wrong leaf never sees a header. Pin the leaf, never an issuer.
+  Linking pins the QR link's optional `pin=sha256/<base64>`, else the leaf the redemption
+  meets; a session linked earlier pins the leaf of its next 2xx answer. `identity_key`
+  (Ed25519) is learned once, over the pinned leaf, from `POST /api/devices/token` or
+  `GET /api/drive/device`, and never replaced. A renewal is accepted only through
+  `kydrive-tls-pin/1` (KyDrive-server `internal/api/tls_pin.go`;
+  `app/src/test/resources/tls-pin-v1.json` is a byte-for-byte copy of its vector): one
+  credential-free `GET /api/devices/tls-pin`, rules in `TlsPins.accept`, compare-and-swap
+  under the `SessionStore` lock, one retry. Without an identity key a mismatch fails closed
+  and the user links again.
 - `FLAG_SECURE` on every screen, except debug builds with `-PallowScreenshots=true`.
   `KeyboardPrivacy` on every text field. No `android.util.Log` in main sources.
   `allowBackup=false`, and the data-extraction rules exclude every domain.
@@ -169,6 +181,8 @@ change the server must make goes in a separate `kydrive-server` PR.
   each fuzz test's inputs in `app/src/test/resources/.../<Class>Inputs/<method>/`; `ci-fuzz`
   fuzzes with `JAZZER_FUZZ=1` for `maxDuration`. Add a finding's input there once fixed.
   `LinkUriFuzzTest` covers the QR link parser, the first untrusted input.
+- `PinnedTlsTest` runs `Api` against a local HTTPS server whose CA only the test trusts and
+  proves a wrong leaf fails the handshake with nothing sent, and the rollover rules end to end.
 - `checkExportedComponents<Variant>` fails unless the merged manifest exports exactly
   `allowedExportedComponents` in `app/build.gradle.kts`.
 - A new or bumped dependency means regenerating `gradle/verification-metadata.xml` with
