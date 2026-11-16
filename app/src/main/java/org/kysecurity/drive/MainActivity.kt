@@ -355,7 +355,7 @@ class MainActivity : SecureActivity() {
                 val out = resolver.openOutputStream(uri, "wt") ?: throw IOException("the chosen place cannot be written")
                 out.use { Drive(s.api()).download(f, it) }
             } catch (e: Exception) {
-                runCatching { DocumentsContract.deleteDocument(resolver, uri) }
+                kotlin.runCatching { DocumentsContract.deleteDocument(resolver, uri) }
                 throw e
             }
         }

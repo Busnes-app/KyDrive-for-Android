@@ -178,8 +178,9 @@ change the server must make goes in a separate `kydrive-server` PR.
   TLS settings in the manifest and `res/xml`.
 - `CertFloorTest` and `TlsFloorTest` cover the floor on the JVM: the policy over each fixture
   chain, and a real HTTPS connection where a refused chain fails inside the handshake and the
-  server records no request line. `CertFloorDeviceTest` proves the same on a device through
-  `driveApi` and the platform's own trust decision; `ci-tls-floor` runs it on API 36 with
+  server records no request line. `CertFloorDeviceTest` proves the key-strength floor through
+  `driveApi`; SHA-1 refusal is attributed to Android, and P-224 retains policy-level coverage.
+  `ci-tls-floor` runs the device suite on API 36 with
   `-PscreenshotCa=app/src/test/resources/tls/ca.pem` and fails if the tests skipped.
   `scripts/tls-fixtures.sh` regenerates the throwaway certificates in `app/src/test/resources/tls`,
   which the device tests read as androidTest assets. No fixture may reach `src/main`.

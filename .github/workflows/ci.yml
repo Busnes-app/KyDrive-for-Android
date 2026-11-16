@@ -212,6 +212,7 @@ jobs:
           report=$(find app/build/outputs/androidTest-results -name 'TEST-*.xml' -print -quit)
           test -n "$report"
           grep -q 'name="org.kysecurity.drive.CertFloorDeviceTest"' "$report"
+          # Deliberately require all seven cases; update this count when the suite changes.
           grep -q 'tests="7"' "$report"
           # The root skipped attribute omits assumption failures in Android's nested XML.
           ! grep -Eq '<(skipped|failure|error)([[:space:]/>])' "$report"
