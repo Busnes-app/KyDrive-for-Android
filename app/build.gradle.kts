@@ -81,9 +81,16 @@ dependencies {
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
+    implementation(libs.zxing.embedded)
     testImplementation(libs.junit)
+    testImplementation(libs.org.json)
     // Lint runs from its own classpath, which the root buildscript floors do not reach.
     constraints { libs.bundles.build.tool.floors.get().forEach { add("androidLintTool", it) } }
+}
+
+// RealServerTest runs only with a built kydrive-server; a different binary must not reuse results.
+tasks.withType<Test>().configureEach {
+    inputs.property("kydriveServerBin", providers.environmentVariable("KYDRIVE_SERVER_BIN").orElse(""))
 }
 
 androidComponents.onVariants { variant ->

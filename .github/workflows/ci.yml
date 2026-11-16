@@ -76,3 +76,48 @@ jobs:
           fi
       - name: dependency verification metadata is unchanged
         run: git diff --exit-code -- gradle/verification-metadata.xml
+
+  # The wire layer against a real server, like kydrive-desktop's real-server job. Bump the
+  # pin when the app starts using a newer server route.
+  real-server:
+    name: ci-real-server
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: pinned public KyDrive server source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Busnes-app/kydrive-server
+          ref: 8cafb83b829f4d5ff4c67ca4bd988888cc998d11
+          path: .ci/kydrive-server
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .ci/kydrive-server/go.mod
+          cache-dependency-path: .ci/kydrive-server/go.sum
+      - name: build the pinned server
+        working-directory: .ci/kydrive-server
+        run: go build -o "$RUNNER_TEMP/kydrive-server" ./cmd/server
+      - uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-provider: basic
+          cache-read-only: true
+      - name: client against the real server
+        env:
+          KYDRIVE_SERVER_BIN: ${{ runner.temp }}/kydrive-server
+        run: ./gradlew testDebugUnitTest --tests '*RealServerTest'
+      # A missing binary skips the tests rather than failing them; this job must run them.
+      - name: real-server tests ran
+        run: |
+          set -euo pipefail
+          report=app/build/test-results/testDebugUnitTest/TEST-org.kysecurity.drive.core.RealServerTest.xml
+          grep -q 'skipped="0"' "$report"
+          ! grep -q 'tests="0"' "$report"

@@ -103,9 +103,8 @@ for form in phone tablet; do
     "$adb" -s "$serial" shell am force-stop org.kysecurity.drive
     "$adb" -s "$serial" shell am start -W -n org.kysecurity.drive/.MainActivity > /dev/null
     sleep 2
-    shot files "Your files will appear"
-    tap Shared
-    shot shared "Workspaces and files shared"
+    # A fresh install is unlinked: the link screen, then Settings without an account.
+    shot link "On a computer, open KyDrive"
     tap Settings
     shot settings "Appearance"
   done

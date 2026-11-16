@@ -284,19 +284,20 @@ Settings, which has these sections:
   metadata.
 - **One flavour, no Google Play Services.** The F-Droid build and the GitHub build are the
   same APK. A Play flavour can be added later if it's ever needed (YAGNI).
-- **Dependencies:** OkHttp, kotlinx-serialization, Tink, zxing-android-embedded, and
-  AndroidX (appcompat, material, work, window, biometric, browser for Custom Tabs).
-- **Modules:**
-  - `core`: pure Kotlin/JVM, with no Android imports. It holds the API client, models, QR
-    and URL validation, upload resume and error mapping. It is the part iOS mirrors (as a
-    Swift port, or as Kotlin Multiplatform if that is chosen then).
-  - `app`: everything Android.
+- **Dependencies:** zxing-android-embedded and AndroidX (appcompat, material). Tink, work,
+  window, biometric and browser come with the features that need them. HTTP is the platform's
+  `HttpURLConnection` and JSON the platform's `org.json`: the API is small enough that OkHttp
+  and kotlinx-serialization would add size and verification surface for nothing.
+- **Wire layer:** the package `org.kysecurity.drive.core`, pure Kotlin with no Android imports
+  (`SourceRulesTest` enforces it). It holds the API client, models, QR and URL validation,
+  upload resume and error mapping, and is the part iOS mirrors. It becomes its own Gradle
+  module only if a second consumer needs it.
 - **Tests:**
   - JVM unit tests for `core` and the policies (wipe, lockout, role gating).
   - Source-rule tests: no `Log`, KeyboardPrivacy, `FLAG_SECURE`, the exported-components
     allowlist.
-  - A **real-server contract job**: CI builds a pinned `kydrive-server` commit and runs
-    the `core` tests against it, as `kydrive-desktop` does.
+  - A **real-server contract job** (`ci-real-server`): CI builds a pinned `kydrive-server`
+    commit and runs `RealServerTest` against it, as `kydrive-desktop` does.
 - **CI on PRs:** wrapper validation, unit tests, lint, a release build with R8, and
   `check-no-binaries`. Actions are pinned by SHA. CodeQL and Scorecard run as in the
   sibling repos.

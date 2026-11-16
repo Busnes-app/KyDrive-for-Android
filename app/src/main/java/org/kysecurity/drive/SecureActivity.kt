@@ -1,6 +1,7 @@
 package org.kysecurity.drive
 
 import android.os.Bundle
+import android.view.Window
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 
@@ -11,11 +12,16 @@ import androidx.appcompat.app.AppCompatActivity
  */
 abstract class SecureActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        if (!BuildConfig.ALLOW_SCREENSHOTS) {
-            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
-        }
-        window.setHideOverlayWindows(true)
+        secureWindow(window)
         super.onCreate(savedInstanceState)
         window.decorView.filterTouchesWhenObscured = true
     }
+}
+
+/** For the one activity that cannot extend [SecureActivity]; call before super.onCreate. */
+fun secureWindow(window: Window) {
+    if (!BuildConfig.ALLOW_SCREENSHOTS) {
+        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+    }
+    window.setHideOverlayWindows(true)
 }
