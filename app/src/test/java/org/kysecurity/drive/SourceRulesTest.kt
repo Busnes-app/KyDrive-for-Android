@@ -39,6 +39,15 @@ class SourceRulesTest {
     }
 
     @Test
+    fun textFieldsKeepTheKeyboardFromLearning() {
+        // privateText sets IME_FLAG_NO_PERSONALIZED_LEARNING; every field must come from it.
+        val layouts = File("src/main/res").walkTopDown().filter { it.extension == "xml" }
+        assertEquals(emptyList<File>(), layouts.filter { Regex("""<(\w+\.)*\w*EditText\b""").containsMatchIn(it.readText()) }.toList())
+        val makers = sources.filter { Regex("""\b\w*EditText\(""").containsMatchIn(it.readText()) }.map { it.name }
+        assertEquals(listOf("Work.kt"), makers)
+    }
+
+    @Test
     fun coreHasNoAndroidImports() {
         // core is the wire layer the iOS app mirrors; it may use java.* and org.json only.
         val core = sources.filter { it.path.contains("/core/") }

@@ -44,5 +44,12 @@
             android:stateNotNeeded="true"
             android:theme="@style/zxing_CaptureTheme"
             android:windowSoftInputMode="stateAlwaysHidden" />
+
+        <!-- Streams a file to the app the user opens it in; reachable only through a per-URI grant. -->
+        <provider
+            android:name=".OpenProvider"
+            android:authorities="${applicationId}.open"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>

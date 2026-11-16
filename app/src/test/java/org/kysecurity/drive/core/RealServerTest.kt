@@ -121,6 +121,55 @@ class RealServerTest {
     }
 
     @Test
+    fun browsesUploadsAndChangesFiles() {
+        val token = Api(base).redeem(LinkUri.parse(phoneLink().replace("srv=http%3A", "srv=https%3A"))!!.code, "Browsing phone").token
+        val d = Drive(Api(base, token))
+
+        val home = d.personal()
+        assertEquals("personal", home.kind)
+        assertTrue(home.canWrite)
+        assertEquals(home, d.personal()) // created once
+        assertEquals(emptyList<SharedItem>(), d.sharedWithMe())
+
+        val docs = d.addFolder(home.id, "", "Docs")
+        val small = d.upload(home.id, docs.id, "notes.txt", 5, "2026-01-02T03:04:05Z", "hello".byteInputStream())
+        val empty = d.upload(home.id, docs.id, "empty.txt", 0, null, ByteArray(0).inputStream())
+        // Over one chunk, so the session takes more than one PUT.
+        val bytes = ByteArray(Drive.CHUNK + 12345) { (it * 31).toByte() }
+        val big = d.upload(home.id, "", "big.bin", bytes.size.toLong(), null, bytes.inputStream())
+        assertEquals(bytes.size.toLong(), big.size)
+
+        assertEquals(Listing(listOf(docs), listOf(big)), d.list(home.id, ""))
+        assertEquals(setOf("notes.txt", "empty.txt"), d.list(home.id, docs.id).files.map { it.name }.toSet())
+        assertEquals(setOf("notes.txt", "empty.txt"), d.children(docs.id).files.map { it.name }.toSet())
+
+        val out = java.io.ByteArrayOutputStream()
+        d.download(big, out)
+        assertTrue(bytes.contentEquals(out.toByteArray()))
+        d.download(empty, java.io.ByteArrayOutputStream())
+        assertEquals("ell", d.range(small, 1, 3).toString(Charsets.UTF_8))
+        assertTrue(bytes.copyOfRange(Drive.CHUNK - 2, Drive.CHUNK + 2).contentEquals(d.range(big, Drive.CHUNK - 2L, 4)))
+        // A listing that is out of date never yields bytes.
+        assertThrows(TransferError::class.java) { d.download(small.copy(digest = "0".repeat(64)), java.io.ByteArrayOutputStream()) }
+        assertThrows(TransferError::class.java) { d.range(small.copy(digest = "0".repeat(64)), 0, 2) }
+
+        val renamed = d.renameFile(small, "renamed.txt")
+        assertEquals("renamed.txt", d.file(small.id).name)
+        assertEquals("Papers", d.renameFolder(docs, "Papers").name)
+        // A stale revision is a conflict, not an overwrite.
+        assertEquals(409, assertThrows(ApiError::class.java) { d.renameFile(small.copy(revision = small.revision + 7), "x.txt") }.status)
+
+        d.trash(renamed, true)
+        assertEquals(listOf("empty.txt"), d.list(home.id, docs.id).files.map { it.name })
+        assertEquals(listOf("renamed.txt"), d.list(home.id, "", trashed = true).files.map { it.name })
+        d.trash(renamed, false)
+        d.trash(docs, true)
+        assertEquals(listOf("Papers"), d.list(home.id, "", trashed = true).folders.map { it.name })
+        d.trash(docs, false)
+        assertEquals(listOf("Papers"), d.list(home.id, "").folders.map { it.name })
+    }
+
+    @Test
     fun aRevokedPhoneIsToldToWipe() {
         val linked = Api(base).redeem(LinkUri.parse(phoneLink().replace("srv=http%3A", "srv=https%3A"))!!.code, "Lost phone")
         val list = JSONArray(webText("GET", "/api/devices"))

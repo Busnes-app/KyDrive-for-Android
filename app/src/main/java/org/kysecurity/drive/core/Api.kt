@@ -1,5 +1,6 @@
 package org.kysecurity.drive.core
 
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
@@ -58,6 +59,29 @@ class Api(private val origin: String, private val token: String? = null) {
             conn.outputStream.use { it.write(body) }
         }
         return conn.answer { if (it.isEmpty()) JSONObject() else parse(it) }
+    }
+
+    internal fun call(method: String, path: String, json: JSONObject): JSONObject =
+        call(method, path, "application/json", json.toString().toByteArray())
+
+    /** A route that answers a JSON array. */
+    internal fun array(method: String, path: String): JSONArray = open(method, path).answer {
+        try {
+            JSONArray(it)
+        } catch (e: JSONException) {
+            throw IOException("KyDrive sent malformed JSON", e)
+        }
+    }
+
+    /** One upload chunk: [len] bytes of [buf] from [off], at [range] ("bytes a-b/total"). */
+    internal fun put(path: String, range: String, buf: ByteArray, off: Int, len: Int) {
+        val conn = open("PUT", path)
+        conn.doOutput = true
+        conn.setRequestProperty("Content-Type", "application/octet-stream")
+        conn.setRequestProperty("Content-Range", range)
+        conn.setFixedLengthStreamingMode(len)
+        conn.outputStream.use { it.write(buf, off, len) }
+        conn.answer { }
     }
 
     internal fun open(method: String, path: String): HttpURLConnection {
