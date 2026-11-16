@@ -15,8 +15,10 @@ import android.provider.OpenableColumns
 import android.system.ErrnoException
 import android.system.OsConstants
 import android.webkit.MimeTypeMap
+import org.kysecurity.drive.core.ApiError
 import org.kysecurity.drive.core.Drive
 import org.kysecurity.drive.core.FileItem
+import org.kysecurity.drive.core.RangeReader
 import java.io.FileNotFoundException
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -43,41 +45,36 @@ class OpenProvider : ContentProvider() {
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
         val o = opened[uri.lastPathSegment] ?: throw FileNotFoundException()
         if (mode != "r") throw SecurityException("read only")
-        val storage = context!!.getSystemService(StorageManager::class.java)
-        return storage.openProxyFileDescriptor(ParcelFileDescriptor.MODE_READ_ONLY, Reader(Drive(o.session.api()), o.file), handler)
+        val app = context!!.applicationContext
+        val born = generation
+        val drive = Drive(o.session.api())
+        val range = RangeReader(o.file.size, WINDOW, { generation == born }) { off, len ->
+            try {
+                drive.range(o.file, off, len)
+            } catch (e: ApiError) {
+                // Revoked while another app reads: wipe now, as any other request would.
+                if (e.revoked) SessionStore(app).wipe()
+                throw e
+            }
+        }
+        val storage = app.getSystemService(StorageManager::class.java)
+        return storage.openProxyFileDescriptor(ParcelFileDescriptor.MODE_READ_ONLY, Reader(o.file.size, range), handler)
     }
 
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
     override fun delete(uri: Uri, selection: String?, args: Array<out String>?) = 0
     override fun update(uri: Uri, values: ContentValues?, selection: String?, args: Array<out String>?) = 0
 
-    /** Serves reads from a read-ahead window, fetching the next window from the server on a miss. */
-    private class Reader(private val drive: Drive, private val file: FileItem) : ProxyFileDescriptorCallback() {
-        private var start = 0L
-        private var window = ByteArray(0)
+    private class Reader(private val size: Long, private val range: RangeReader) : ProxyFileDescriptorCallback() {
+        override fun onGetSize() = size
 
-        override fun onGetSize() = file.size
-
-        override fun onRead(offset: Long, size: Int, data: ByteArray): Int {
-            if (offset >= file.size) return 0
-            val want = minOf(size.toLong(), file.size - offset).toInt()
-            if (offset < start || offset + want > start + window.size) {
-                val len = minOf(maxOf(want, WINDOW).toLong(), file.size - offset).toInt()
-                window = try {
-                    drive.range(file, offset, len)
-                } catch (_: Exception) {
-                    throw ErrnoException("read", OsConstants.EIO)
-                }
-                start = offset
-                if (window.size < want) throw ErrnoException("read", OsConstants.EIO)
-            }
-            System.arraycopy(window, (offset - start).toInt(), data, 0, want)
-            return want
+        override fun onRead(offset: Long, size: Int, data: ByteArray): Int = try {
+            range.read(offset, size, data)
+        } catch (_: Exception) {
+            throw ErrnoException("read", OsConstants.EIO)
         }
 
-        override fun onRelease() {
-            window = ByteArray(0)
-        }
+        override fun onRelease() = range.close()
     }
 
     private class Opened(val session: Session, val file: FileItem)
@@ -85,6 +82,9 @@ class OpenProvider : ContentProvider() {
     companion object {
         private const val WINDOW = 1 shl 20
         private val opened = ConcurrentHashMap<String, Opened>()
+
+        // Bumped by forget(): readers opened under an older generation return nothing more.
+        @Volatile private var generation = 0
         private val handler by lazy { Handler(HandlerThread("open-files").apply { start() }.looper) }
 
         fun uri(context: Context, session: Session, file: FileItem): Uri {
@@ -93,8 +93,11 @@ class OpenProvider : ContentProvider() {
             return Uri.Builder().scheme("content").authority("${context.packageName}.open").appendPath(token).build()
         }
 
-        /** Unlink and revoke: no granted URI keeps reading. */
-        fun forget() = opened.clear()
+        /** Unlink and revoke: no granted URI opens again, and open ones stop reading. */
+        fun forget() {
+            generation++
+            opened.clear()
+        }
 
         fun mimeType(name: String): String =
             MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase()) ?: "application/octet-stream"

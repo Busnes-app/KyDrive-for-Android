@@ -107,10 +107,7 @@ class MainActivity : SecureActivity() {
         Work.changed = ::load
         if (linking) return
         val loaded = store.load()
-        if (loaded != session) {
-            session = loaded
-            stacks.clear()
-        }
+        if (loaded != session) setSession(loaded)
         render()
         load()
     }
@@ -367,11 +364,24 @@ class MainActivity : SecureActivity() {
     private fun failed(s: Session, e: Throwable) {
         val text = failure(this, s, e)
         when {
-            e is ApiError && e.revoked -> { session = null; stacks.clear() }
+            e is ApiError && e.revoked -> setSession(null)
             e is ApiError && e.status == 401 -> signedOut = true
         }
         render()
         snack(text)
+    }
+
+    /**
+     * Every change of account goes through here, so nothing the previous one listed stays on
+     * screen or pending: not its rows, its folders or a save waiting for a destination.
+     */
+    private fun setSession(next: Session?) {
+        session = next
+        signedOut = false
+        stacks.clear()
+        loadJob?.cancel()
+        adapter.rows = emptyList()
+        saving = null
     }
 
     // ---- linking ----
@@ -409,9 +419,7 @@ class MainActivity : SecureActivity() {
             linking = false
             result.onSuccess { next ->
                 if (next == null) return@onSuccess snack(getString(R.string.link_other_account))
-                session = next
-                signedOut = false
-                stacks.clear()
+                setSession(next)
                 snack(getString(R.string.link_done, next.user))
                 load()
             }.onFailure { snack(linkFailure(it, link.host)) }
