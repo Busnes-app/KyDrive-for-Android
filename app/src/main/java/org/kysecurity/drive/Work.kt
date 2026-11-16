@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.kysecurity.drive.core.ApiError
 import org.kysecurity.drive.core.TransferError
+import org.kysecurity.drive.core.isPinMismatch
 import javax.net.ssl.SSLException
 
 /**
@@ -51,6 +52,7 @@ fun failure(context: Context, session: Session, e: Throwable): String = when {
     e is ApiError && e.status == 409 -> context.getString(R.string.error_conflict)
     e is ApiError && e.status == 413 -> context.getString(R.string.error_quota)
     e is ApiError -> context.getString(R.string.error_server, e.status)
+    e.isPinMismatch() -> context.getString(R.string.error_pin, session.host)
     e is SSLException -> context.getString(R.string.error_certificate, session.host)
     e is TransferError -> context.getString(R.string.error_transfer)
     else -> context.getString(R.string.error_unreachable, session.host)

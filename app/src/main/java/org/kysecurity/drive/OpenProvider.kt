@@ -48,7 +48,7 @@ class OpenProvider : ContentProvider() {
         val o = live(uri) ?: throw FileNotFoundException()
         if (mode != "r") throw SecurityException("read only")
         val app = context!!.applicationContext
-        val drive = Drive(o.session.api())
+        val drive = Drive(o.session.api(app))
         // The generation recorded when the URI was made: a wipe at any point after that,
         // even between the lookup above and here, leaves this reader dead.
         val range = RangeReader(o.file.size, WINDOW, { generation == o.generation && !Lock.app.isLocked() }) { off, len ->

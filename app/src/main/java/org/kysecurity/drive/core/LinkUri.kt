@@ -5,11 +5,12 @@ import java.net.URISyntaxException
 import java.net.URLDecoder
 
 /**
- * A scanned `kydrive://link?srv=<origin>&code=<code>`. Nothing is sent before it parses: the
- * server must be a bare HTTPS origin, so a crafted code cannot point the token request at a
- * path, a userinfo host or plain HTTP.
+ * A scanned `kydrive://link?srv=<origin>&code=<code>[&pin=sha256/<base64>]`. Nothing is sent
+ * before it parses: the server must be a bare HTTPS origin, so a crafted code cannot point the
+ * token request at a path, a userinfo host or plain HTTP. With a [pin], the redemption is pinned
+ * to that leaf; without one, to the leaf it meets (trust on first use).
  */
-data class LinkUri(val origin: String, val code: String) {
+data class LinkUri(val origin: String, val code: String, val pin: String? = null) {
     /** The host the user is asked to confirm, with any port. */
     val host: String get() = origin.removePrefix("https://")
 
@@ -23,14 +24,16 @@ data class LinkUri(val origin: String, val code: String) {
                 return null
             }
             val params = uri.rawQuery?.split('&')?.map { it.split('=', limit = 2) } ?: return null
-            if (params.any { it.size != 2 } || params.map { it[0] }.sorted() != listOf("code", "srv")) return null
+            val names = params.map { it[0] }.sorted()
+            if (params.any { it.size != 2 } || names != listOf("code", "srv") && names != listOf("code", "pin", "srv")) return null
             val value = try {
                 params.associate { it[0] to URLDecoder.decode(it[1], "UTF-8") }
             } catch (_: IllegalArgumentException) {
                 return null // a malformed %-escape
             }
             val code = value.getValue("code").takeIf { CODE.matches(it) } ?: return null
-            return LinkUri(origin(value.getValue("srv")) ?: return null, code)
+            val pin = value["pin"]?.let { if (TlsPins.valid(it)) it else return null }
+            return LinkUri(origin(value.getValue("srv")) ?: return null, code, pin)
         }
 
         private fun origin(text: String): String? {

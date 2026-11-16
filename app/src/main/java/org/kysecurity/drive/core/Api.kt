@@ -8,6 +8,11 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
+import java.security.cert.X509Certificate
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLSocketFactory
+import javax.net.ssl.X509ExtendedTrustManager
 
 /** A non-2xx answer. [code] is the server's `error` text, never shown verbatim to the user. */
 class ApiError(val status: Int, val code: String, val wipe: Boolean) : IOException("KyDrive answered $status") {
@@ -25,21 +30,32 @@ data class Account(val userId: String, val user: String)
  * The KyDrive HTTP API. Blocking; call it off the main thread. [origin] comes from a parsed
  * [LinkUri], so it is a bare HTTPS origin. Redirects are refused rather than followed. With a
  * [key], every request the [token] makes is signed ([RequestSigning]).
+ *
+ * Every HTTPS connection checks [trust] (system CAs) and then the leaf in [pins]. With no pin
+ * yet, the leaf of the first 2xx answer is pinned (trust on first use). A wrong leaf triggers one
+ * signed rollover ([TlsPins.accept]) and one retry; without the server's identity key it fails.
  */
-class Api(private val origin: String, private val token: String? = null, private val key: DeviceKey? = null) {
+class Api(
+    private val origin: String,
+    private val token: String? = null,
+    private val key: DeviceKey? = null,
+    private val pins: PinStore = MemoryPins(),
+    private val trust: X509ExtendedTrustManager = system,
+    private val now: () -> Long = { System.currentTimeMillis() / 1000 },
+) {
 
     /** Redeems a scanned phone code, enrolling [key] when there is one. A used or expired code is a 400. */
     fun redeem(code: String, name: String): Linked {
         var form = "grant=qr&code=${enc(code)}&name=${enc(name)}&platform=android"
         key?.let { form += "&publicKey=" + enc(java.util.Base64.getEncoder().encodeToString(it.spki)) }
-        val json = call("POST", "/api/devices/token", "application/x-www-form-urlencoded", form.toByteArray())
+        val json = learning("POST", "/api/devices/token", "application/x-www-form-urlencoded", form.toByteArray())
         val token = json.optString("token")
         if (!token.startsWith("kyd_")) throw IOException("KyDrive returned no device token")
         return Linked(token, json.str("user_id"), json.str("user"))
     }
 
     fun account(): Account {
-        val json = call("GET", "/api/drive/device")
+        val json = learning("GET", "/api/drive/device")
         return Account(json.str("user_id"), json.str("user"))
     }
 
@@ -72,27 +88,86 @@ class Api(private val origin: String, private val token: String? = null, private
         open("PUT", path, mapOf("Content-Type" to "application/octet-stream", "Content-Range" to range), buf, off, len).answer { }
     }
 
-    /** Opens [path] with [headers], signed when there is a key, and sends [len] bytes of [body] from [off]. */
+    /** Opens [path] with [headers], signed when there is a key, sends [len] bytes of [body] from [off] and reads the status. */
     internal fun open(method: String, path: String, headers: Map<String, String> = emptyMap(), body: ByteArray? = null, off: Int = 0, len: Int = body?.size ?: 0): HttpURLConnection {
+        val pin = pins.current()
+        val conn = try {
+            send(method, path, headers, body, off, len, pin?.leaf, credentials = true)
+        } catch (e: IOException) {
+            if (pin == null || !e.isPinMismatch() || !roll(pin)) throw e
+            // The one retry: a server flapping between leaves fails here instead of rolling again.
+            send(method, path, headers, body, off, len, pins.current()?.leaf ?: throw e, credentials = true)
+        }
+        if (pin == null && conn.responseCode in 200..299) conn.leaf()?.let { pins.replace(null, TlsPin(it)) }
+        return conn
+    }
+
+    /**
+     * A JSON call whose answer may carry `identity_key`. It is learned once, over the pinned leaf,
+     * and never replaced: whoever holds a leaf's key (the TLS proxy) must not gain later rollovers.
+     */
+    private fun learning(method: String, path: String, type: String? = null, body: ByteArray? = null): JSONObject {
+        val conn = open(method, path, type?.let { mapOf("Content-Type" to it) }.orEmpty(), body)
+        val leaf = conn.leaf()
+        val json = conn.answer { if (it.isEmpty()) JSONObject() else parse(it) }
+        val identity = TlsPins.identityKeyOrNull(json.optString("identity_key").ifEmpty { null }) ?: return json
+        val stored = pins.current() ?: return json
+        if (stored.leaf == leaf && stored.identityKey == null) pins.replace(stored, stored.copy(identityKey = identity))
+        return json
+    }
+
+    /**
+     * After [failed] met another leaf: one credential-free fetch of the signed pin over system
+     * trust. True when the stored pin moved (here or by a concurrent call) and the request is
+     * worth one retry. Serialized so one renewal costs one fetch.
+     */
+    private fun roll(failed: TlsPin): Boolean = synchronized(ROLL) { rollLocked(failed) }
+
+    private fun rollLocked(failed: TlsPin): Boolean {
+        val stored = pins.current() ?: return false
+        if (stored != failed) return stored.leaf != failed.leaf
+        if (stored.identityKey == null) return false
+        val conn = send("GET", "/api/devices/tls-pin", emptyMap(), null, 0, 0, null, credentials = false)
+        val next = try {
+            val observed = conn.leaf()
+            if (conn.responseCode != 200 || observed == null) return false
+            val statement = parse(conn.inputStream.use { it.readBounded(4096) })
+            TlsPins.accept(stored, URI(origin).host.lowercase(), observed, statement, now())
+        } finally {
+            conn.disconnect()
+        }
+        // Compare-and-swap: an unlink or re-link during the fetch is never undone.
+        return next != null && pins.replace(stored, next)
+    }
+
+    /** A connection pinned to [pin] (null: system trust only). Without [credentials] it carries no token and no signature. */
+    private fun send(method: String, path: String, headers: Map<String, String>, body: ByteArray?, off: Int, len: Int, pin: String?, credentials: Boolean): HttpURLConnection {
         val url = URI(origin + path).toURL()
         val conn = url.openConnection() as HttpURLConnection
-        conn.requestMethod = method
-        conn.instanceFollowRedirects = false
-        conn.useCaches = false
-        conn.connectTimeout = 15_000
-        conn.readTimeout = 60_000
-        conn.setRequestProperty("Accept", "application/json")
-        token?.let { conn.setRequestProperty("Authorization", "Bearer $it") }
-        headers.forEach { (k, v) -> conn.setRequestProperty(k, v) }
-        if (token != null && key != null) {
-            RequestSigning.headers(key, origin, method, url.file, headers, body ?: ByteArray(0), off, len).forEach { (k, v) -> conn.setRequestProperty(k, v) }
+        try {
+            (conn as? HttpsURLConnection)?.sslSocketFactory = factory(trust, pin)
+            conn.requestMethod = method
+            conn.instanceFollowRedirects = false
+            conn.useCaches = false
+            conn.connectTimeout = 15_000
+            conn.readTimeout = 60_000
+            conn.setRequestProperty("Accept", "application/json")
+            if (credentials) token?.let { conn.setRequestProperty("Authorization", "Bearer $it") }
+            headers.forEach { (k, v) -> conn.setRequestProperty(k, v) }
+            if (credentials && token != null && key != null) {
+                RequestSigning.headers(key, origin, method, url.file, headers, body ?: ByteArray(0), off, len).forEach { (k, v) -> conn.setRequestProperty(k, v) }
+            }
+            if (body != null) {
+                conn.doOutput = true
+                conn.setFixedLengthStreamingMode(len)
+                conn.outputStream.use { it.write(body, off, len) }
+            }
+            conn.responseCode
+            return conn
+        } catch (e: IOException) {
+            conn.disconnect()
+            throw e
         }
-        if (body != null) {
-            conn.doOutput = true
-            conn.setFixedLengthStreamingMode(len)
-            conn.outputStream.use { it.write(body, off, len) }
-        }
-        return conn
     }
 
     /** Reads a 2xx body as text, or throws [ApiError]; always disconnects. */
@@ -106,6 +181,22 @@ class Api(private val origin: String, private val token: String? = null, private
 
     companion object {
         private const val MAX_JSON = 8 shl 20
+        private val ROLL = Any()
+        private val system: X509ExtendedTrustManager by lazy { TlsPins.systemTrust() }
+
+        private class Factory(val trust: X509ExtendedTrustManager, val pin: String?, val factory: SSLSocketFactory)
+
+        /** One context per pin, kept while it is current, so pooled connections and resumed sessions never cross pins. */
+        @Volatile private var last: Factory? = null
+
+        private fun factory(trust: X509ExtendedTrustManager, pin: String?): SSLSocketFactory {
+            last?.takeIf { it.trust === trust && it.pin == pin }?.let { return it.factory }
+            val context = SSLContext.getInstance("TLS").apply { init(null, arrayOf(PinningTrustManager(trust, pin)), null) }
+            return Factory(trust, pin, context.socketFactory).also { last = it }.factory
+        }
+
+        private fun HttpURLConnection.leaf(): String? =
+            (this as? HttpsURLConnection)?.serverCertificates?.firstOrNull()?.let { TlsPins.of(it as X509Certificate) }
 
         fun enc(s: String): String = URLEncoder.encode(s, "UTF-8") // the Charset overload needs API 33
 
