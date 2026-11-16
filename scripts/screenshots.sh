@@ -2,7 +2,8 @@
 # Captures every screen in light and dark, on a phone and a tablet, into docs/screenshots/.
 # Needs ANDROID_HOME and the API 36 google_apis x86_64 image. Creates its own AVDs
 # (kydrive-phone, kydrive-tablet) on free console ports, so it leaves other emulators
-# alone. Run from the repo root.
+# alone. Run from the repo root. With KYDRIVE_SERVER_BIN set, it also links each emulator to
+# a throwaway server (scripts/screenshot-server.sh) and captures the linked screens.
 set -euo pipefail
 sdk=${ANDROID_HOME:?set ANDROID_HOME}
 adb=$sdk/platform-tools/adb
@@ -13,8 +14,17 @@ image="system-images;android-36;google_apis;x86_64"
 out=docs/screenshots
 mkdir -p "$out"
 
-./gradlew -q :app:assembleDebug -PallowScreenshots=true
+server=
+ca=()
+if [ -n "${KYDRIVE_SERVER_BIN:-}" ]; then
+  server=$(mktemp -d)
+  trap '[ -z "$server" ] || scripts/screenshot-server.sh stop "$server"' EXIT
+  scripts/screenshot-server.sh start "$server"
+  ca=("-PscreenshotCa=$server/ca.pem")
+fi
+./gradlew -q :app:assembleDebug -PallowScreenshots=true "${ca[@]}"
 apk=app/build/outputs/apk/debug/app-debug.apk
+key() { "$adb" -s "$serial" shell input keyevent "$1"; }
 
 # Taps the centre of the first node whose text or content-desc is exactly $1.
 tap() {
@@ -75,7 +85,7 @@ for form in phone tablet; do
   "$sdk/emulator/emulator" -avd "$avd" -port "$port" -no-window -no-audio -no-boot-anim \
     -no-snapshot -gpu swiftshader_indirect > "/tmp/$avd.log" 2>&1 &
   emu=$!
-  trap 'kill $emu 2>/dev/null || true' EXIT
+  trap 'kill $emu 2>/dev/null || true; [ -z "$server" ] || scripts/screenshot-server.sh stop "$server"' EXIT
   booted() { [ "$("$adb" -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; }
   fail() { echo "$1; last emulator output:" >&2; tail -40 "/tmp/$avd.log" >&2; exit 1; }
   timeout 300 "$adb" -s "$serial" wait-for-device || fail "adb never saw $serial"
@@ -100,17 +110,44 @@ for form in phone tablet; do
   for mode in light dark; do
     if [ $mode = dark ]; then night=yes; else night=no; fi
     "$adb" -s "$serial" shell cmd uimode night $night
-    "$adb" -s "$serial" shell am force-stop org.kysecurity.drive
+    "$adb" -s "$serial" shell pm clear org.kysecurity.drive > /dev/null
     "$adb" -s "$serial" shell am start -W -n org.kysecurity.drive/.MainActivity > /dev/null
-    sleep 2
-    # A fresh install is unlinked: the link screen, then Settings without an account.
     shot link "On a computer, open KyDrive"
+    if [ -z "$server" ]; then
+      tap Settings
+      shot settings "Appearance"
+      continue
+    fi
+    # Linked: a fresh one-time code per mode, handed in as if scanned.
+    link=$(scripts/screenshot-server.sh link "$server")
+    "$adb" -s "$serial" shell am force-stop org.kysecurity.drive
+    "$adb" -s "$serial" shell am start -W -n org.kysecurity.drive/.MainActivity --es screenshot_link "'$link'" > /dev/null
+    shot confirm "This links the phone to"
+    tap Link
+    shot files "Budget 2026.xlsx"
+    tap "Actions for Notes.txt"
+    shot actions "Save to this phone"
+    key BACK
+    tap Add
+    shot add "Upload files"
+    key BACK
+    tap Projects
+    shot folder "Roadmap.md"
+    tap "More options"
+    tap Trash
+    shot trash "Old draft.docx"
+    key BACK
+    key BACK
+    tap Shared
+    shot shared "Finance"
+    tap Team
+    shot workspace "Shared plan.pdf"
     tap Settings
-    shot settings "Appearance"
+    shot settings "Unlink this phone"
   done
 
   "$adb" -s "$serial" emu kill > /dev/null || true
   wait $emu || true
-  trap - EXIT
+  trap '[ -z "$server" ] || scripts/screenshot-server.sh stop "$server"' EXIT
 done
 ls -1 "$out"

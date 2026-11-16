@@ -88,6 +88,23 @@ dependencies {
     constraints { libs.bundles.build.tool.floors.get().forEach { add("androidLintTool", it) } }
 }
 
+// Screenshot builds only (scripts/screenshots.sh passes -PscreenshotCa): a debuggable APK
+// that also trusts the throwaway CA of the script's HTTPS test server, through debug-overrides
+// in a generated copy of the network config. src/main and every other build are untouched.
+val screenshotCa = providers.gradleProperty("screenshotCa").orNull
+androidComponents.onVariants(androidComponents.selector().withBuildType("debug")) { variant ->
+    if (screenshotCa == null) return@onVariants
+    val dir = layout.buildDirectory.dir("generated/screenshotCa/res").get().asFile
+    File(dir, "raw").mkdirs()
+    File(screenshotCa).copyTo(File(dir, "raw/screenshot_ca.pem"), overwrite = true)
+    File(dir, "xml").mkdirs()
+    val main = file("src/main/res/xml/network_security_config.xml").readText()
+    val overrides = """    <debug-overrides><trust-anchors><certificates src="@raw/screenshot_ca" /></trust-anchors></debug-overrides>
+</network-security-config>"""
+    File(dir, "xml/network_security_config.xml").writeText(main.replace("</network-security-config>", overrides))
+    variant.sources.res?.addStaticSourceDirectory(dir.path)
+}
+
 // RealServerTest runs only with a built kydrive-server; a different binary must not reuse results.
 tasks.withType<Test>().configureEach {
     inputs.property("kydriveServerBin", providers.environmentVariable("KYDRIVE_SERVER_BIN").orElse(""))

@@ -117,6 +117,9 @@ change the server must make goes in a separate `kydrive-server` PR.
   unsaved user work.
 - TLS only, against system CAs only. Never cleartext, never user-installed CAs, with no
   option to enable either (owner, 2026-11-15). Refuse redirects.
+  The one exception is the throwaway CA `scripts/screenshot-server.sh` makes per run,
+  trusted through `debug-overrides` only in the debuggable APK built with
+  `-PscreenshotCa`. `src/main` and every other build trust system CAs only.
 - `FLAG_SECURE` on every screen, except debug builds with `-PallowScreenshots=true`.
   `KeyboardPrivacy` on every text field. No `android.util.Log` in main sources.
   `allowBackup=false`, and the data-extraction rules exclude every domain.
@@ -156,9 +159,11 @@ change the server must make goes in a separate `kydrive-server` PR.
   `gradle/libs.versions.toml`. They apply to the root buildscript classpath and to
   `androidLintTool`, which lint resolves on its own.
 - `scripts/screenshots.sh` captures every screen into `docs/screenshots/`, light and dark,
-  phone and tablet, on its own AVDs. The `screenshots` workflow runs it on every PR that
-  touches `app/src/main` and uploads the PNGs as an artifact; attach them to the PR. Add
-  each new screen to the script.
+  phone and tablet, on its own AVDs. With `KYDRIVE_SERVER_BIN` set it starts a seeded
+  throwaway server (`scripts/screenshot-server.sh`, behind socat TLS), links each emulator
+  through the `screenshot_link` extra and captures the linked screens too. The
+  `screenshots` workflow does that on every PR that touches `app/src/main` and uploads the
+  PNGs as an artifact; attach them to the PR. Add each new screen to the script.
 
 ## Child DOX Index
 - `docs/` — design and owner decisions (`DESIGN.md`).

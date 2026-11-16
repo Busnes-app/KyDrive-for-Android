@@ -6,6 +6,7 @@ on:
     paths:
       - 'app/src/main/**'
       - 'scripts/screenshots.sh'
+      - 'scripts/screenshot-server.sh'
       - '.github/workflows/screenshots.yml'
   workflow_dispatch:
 
@@ -22,6 +23,25 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The same pinned server as ci-real-server, for the linked screens.
+      - name: pinned public KyDrive server source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Busnes-app/kydrive-server
+          ref: 8cafb83b829f4d5ff4c67ca4bd988888cc998d11
+          path: .ci/kydrive-server
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .ci/kydrive-server/go.mod
+          cache-dependency-path: .ci/kydrive-server/go.sum
+      - name: build the pinned server
+        working-directory: .ci/kydrive-server
+        run: go build -o "$RUNNER_TEMP/kydrive-server" ./cmd/server
+      - name: install socat
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends socat
       - uses: gradle/actions/wrapper-validation@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
@@ -43,6 +63,8 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" emulator platform-tools \
             "system-images;android-36;google_apis;x86_64" > /dev/null
       - run: scripts/screenshots.sh
+        env:
+          KYDRIVE_SERVER_BIN: ${{ runner.temp }}/kydrive-server
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: screenshots
