@@ -31,6 +31,11 @@ elliptic-curve keys of at least 256 bits, and SHA-2 or stronger verified certifi
 signatures across the validated chain. The self-signature of a trust anchor is not
 used as a security proof; the anchor's key strength is still checked.
 
+The current policy accepts measurable RSA and EC certificate keys and named SHA-2
+signature algorithms. Ed25519 keys and RSASSA-PSS certificate signatures are currently
+refused because this policy does not measure them; that refusal is not a claim that
+those algorithms are weak. Operators need a certificate chain the policy supports.
+
 Each linked-device request is signed using its non-exportable P-256 key and SHA-256.
 The signed request format binds origin, method, target, timestamp, nonce, selected
 state-changing headers and body digest. The server enforces device permissions and
