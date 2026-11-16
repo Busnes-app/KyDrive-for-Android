@@ -125,9 +125,7 @@ class Drive(private val api: Api) {
      * version: If-Range makes a changed file a full 200, which is refused.
      */
     fun range(f: FileItem, offset: Long, length: Int): ByteArray {
-        val conn = api.open("GET", "/api/drive/files/${seg(f.id)}/download")
-        conn.setRequestProperty("Range", "bytes=$offset-${offset + length - 1}")
-        conn.setRequestProperty("If-Range", "\"${f.digest}\"")
+        val conn = api.open("GET", "/api/drive/files/${seg(f.id)}/download", mapOf("Range" to "bytes=$offset-${offset + length - 1}", "If-Range" to "\"${f.digest}\""))
         try {
             when (conn.responseCode) {
                 206 -> {}

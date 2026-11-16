@@ -14,10 +14,15 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-/** A linked phone: the server, the device token and the account it belongs to. */
-data class Session(val origin: String, val token: String, val userId: String, val user: String, val device: String) {
+/**
+ * A linked phone: the server, the device token, the account it belongs to and the alias of its
+ * signing key ([DeviceSigningKey]; empty for a phone linked before signing).
+ */
+data class Session(val origin: String, val token: String, val userId: String, val user: String, val device: String, val keyAlias: String = "") {
     val host: String get() = origin.removePrefix("https://")
-    fun api() = Api(origin, token)
+
+    /** A key the session names but the Keystore lost signs nothing, and the server refuses the token. */
+    fun api() = Api(origin, token, keyAlias.takeIf { it.isNotEmpty() }?.let { DeviceSigningKey.load(it) })
 }
 
 /**
@@ -47,12 +52,12 @@ class SessionStore(context: Context) {
             val cipher = Cipher.getInstance(TRANSFORM)
             cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, bytes, 1, IV))
             val json = JSONObject(cipher.doFinal(bytes, 1 + IV, bytes.size - 1 - IV).toString(Charsets.UTF_8))
-            Session(json.getString("origin"), json.getString("token"), json.getString("user_id"), json.getString("user"), json.getString("device"))
+            Session(json.getString("origin"), json.getString("token"), json.getString("user_id"), json.getString("user"), json.getString("device"), json.optString("key"))
         }.getOrElse { wipe(); null }
     }
 
     fun save(s: Session) {
-        val json = JSONObject().put("origin", s.origin).put("token", s.token).put("user_id", s.userId).put("user", s.user).put("device", s.device)
+        val json = JSONObject().put("origin", s.origin).put("token", s.token).put("user_id", s.userId).put("user", s.user).put("device", s.device).put("key", s.keyAlias)
         val cipher = Cipher.getInstance(TRANSFORM)
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val sealed = byteArrayOf(VERSION) + cipher.iv + cipher.doFinal(json.toString().toByteArray())

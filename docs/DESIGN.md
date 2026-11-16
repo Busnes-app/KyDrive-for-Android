@@ -122,6 +122,7 @@ There is no sign-in-on-the-phone path. Linking needs the web app open on a secon
 | Leaks through logs and backups | No `android.util.Log` in main sources (source-rule test). File names, tokens and URLs never reach logs or crash reports, and there is no crash SDK. `allowBackup=false`, and the data-extraction rules exclude every domain. |
 | Compromised or malicious server | The server already sees everything (it is not end-to-end encrypted). The app treats names from the server as untrusted: no path joins, and content is shown with the server's own type checks. The DocumentsProvider never resolves names to paths. |
 | A stolen phone widening access | It can't. The device token cannot share, grant, mint credentials or create guest links (server-enforced). |
+| Token read in transit (a certificate the phone trusts, on its path) | Every request is signed by a non-exportable Keystore P-256 key enrolled at linking (`kydrive-request-v1`: origin, method, URI, date, nonce, state-changing headers, body digest), so the token alone is refused and a captured request cannot be replayed. The interceptor still reads file bytes in transit until the TLS pin lands. |
 
 **Not defended:**
 

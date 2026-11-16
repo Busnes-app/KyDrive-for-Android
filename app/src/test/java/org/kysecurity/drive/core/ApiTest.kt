@@ -100,4 +100,49 @@ class ApiTest {
         route("/api/devices/self", 500, """{"error":"Drive operation failed"}""")
         assertThrows(ApiError::class.java) { Api(origin, "kyd_t").unlink() }
     }
+
+    @Test
+    fun aKeyedDeviceSignsEveryRequestItsTokenMakes() {
+        val key = SoftwareKey()
+        val checked = mutableListOf<String>()
+        server.createContext("/api/") { ex: HttpExchange ->
+            val body = ex.requestBody.readBytes()
+            val h = ex.requestHeaders
+            val headers = RequestSigning.SIGNED_HEADERS.mapNotNull { n -> h.getFirst(n)?.let { n to it } }.toMap()
+            val msg = RequestSigning.message(
+                RequestSigning.canonicalOrigin(origin), ex.requestMethod, ex.requestURI.rawPath + (ex.requestURI.rawQuery?.let { "?$it" } ?: ""),
+                h.getFirst("KyDrive-Date"), h.getFirst("KyDrive-Nonce"), RequestSigning.headerDigest(headers), RequestSigning.sha256Hex(body),
+            )
+            val ok = h.getFirst("KyDrive-Content-SHA256") == RequestSigning.sha256Hex(body) &&
+                verifies(key.public, msg, java.util.Base64.getDecoder().decode(h.getFirst("KyDrive-Signature")))
+            checked += "${ex.requestMethod} ${ex.requestURI.rawPath} $ok"
+            val out = """{"user_id":"u1","user":"ana","received":4}""".toByteArray()
+            ex.sendResponseHeaders(if (ok) 200 else 401, out.size.toLong())
+            ex.responseBody.use { it.write(out) }
+        }
+        val api = Api(origin, "kyd_t", key)
+        api.account()
+        api.call("POST", "/api/drive/workspaces/w/folders", org.json.JSONObject().put("name", "A b"))
+        api.put("/api/drive/upload-sessions/s%201", "bytes 2-5/9", "..data..".toByteArray(), 2, 4)
+        api.call("GET", "/api/drive/search?q=a%20b")
+        assertEquals(listOf("GET /api/drive/device true", "POST /api/drive/workspaces/w/folders true", "PUT /api/drive/upload-sessions/s%201 true", "GET /api/drive/search true"), checked)
+    }
+
+    @Test
+    fun redeemEnrolsTheKeyAndSignsNothing() {
+        val key = SoftwareKey()
+        var signature: String? = null
+        var form = ""
+        server.createContext("/api/devices/token") { ex: HttpExchange ->
+            form = ex.requestBody.readBytes().toString(Charsets.UTF_8)
+            signature = ex.requestHeaders.getFirst("KyDrive-Signature")
+            val out = """{"token":"kyd_abc","user_id":"u1","user":"ana"}""".toByteArray()
+            ex.sendResponseHeaders(200, out.size.toLong())
+            ex.responseBody.use { it.write(out) }
+        }
+        Api(origin, key = key).redeem("c", "n")
+        val sent = form.split('&').associate { it.substringBefore('=') to URLDecoder.decode(it.substringAfter('='), "UTF-8") }
+        assertTrue(key.spki.contentEquals(java.util.Base64.getDecoder().decode(sent["publicKey"])))
+        assertEquals(null, signature)
+    }
 }
