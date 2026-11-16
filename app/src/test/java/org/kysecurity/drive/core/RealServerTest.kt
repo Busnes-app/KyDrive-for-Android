@@ -108,22 +108,31 @@ class RealServerTest {
         assertNotNull("the server's link must parse: $raw", parsed)
         val code = parsed!!.code
 
-        val linked = Api(base).redeem(code, "Test phone")
+        val key = SoftwareKey()
+        val linked = Api(base, key = key).redeem(code, "Test phone")
         assertTrue(linked.token.startsWith("kyd_"))
         assertEquals(adminId, linked.userId)
-        assertEquals(Account(adminId, "admin"), Api(base, linked.token).account())
+        assertEquals(Account(adminId, "admin"), Api(base, linked.token, key).account())
+
+        // The server enforces the key: the token alone, or signed by another key, opens nothing.
+        val bare = assertThrows(ApiError::class.java) { Api(base, linked.token).account() }
+        assertEquals(401, bare.status)
+        assertTrue(!bare.revoked)
+        assertEquals(401, assertThrows(ApiError::class.java) { Api(base, linked.token, SoftwareKey()).account() }.status)
 
         // Single use: a photographed code fails once the owner's scan has redeemed it.
         assertEquals(400, assertThrows(ApiError::class.java) { Api(base).redeem(code, "Thief") }.status)
 
-        Api(base, linked.token).unlink()
-        assertTrue(assertThrows(ApiError::class.java) { Api(base, linked.token).account() }.revoked)
+        Api(base, linked.token, key).unlink()
+        assertTrue(assertThrows(ApiError::class.java) { Api(base, linked.token, key).account() }.revoked)
     }
 
     @Test
     fun browsesUploadsAndChangesFiles() {
-        val token = Api(base).redeem(LinkUri.parse(phoneLink().replace("srv=http%3A", "srv=https%3A"))!!.code, "Browsing phone").token
-        val d = Drive(Api(base, token))
+        // Signed throughout: listings, JSON writes, resumable chunks and range reads.
+        val key = SoftwareKey()
+        val token = Api(base, key = key).redeem(LinkUri.parse(phoneLink().replace("srv=http%3A", "srv=https%3A"))!!.code, "Browsing phone").token
+        val d = Drive(Api(base, token, key))
 
         val home = d.personal()
         assertEquals("personal", home.kind)
@@ -171,12 +180,13 @@ class RealServerTest {
 
     @Test
     fun aRevokedPhoneIsToldToWipe() {
-        val linked = Api(base).redeem(LinkUri.parse(phoneLink().replace("srv=http%3A", "srv=https%3A"))!!.code, "Lost phone")
+        val key = SoftwareKey()
+        val linked = Api(base, key = key).redeem(LinkUri.parse(phoneLink().replace("srv=http%3A", "srv=https%3A"))!!.code, "Lost phone")
         val list = JSONArray(webText("GET", "/api/devices"))
         val device = (0 until list.length()).map { list.getJSONObject(it) }.single { it.getString("name") == "Lost phone" }
         assertEquals("android", device.getString("platform"))
         webText("DELETE", "/api/devices/${device.getString("id")}?wipe=false")
-        val e = assertThrows(ApiError::class.java) { Api(base, linked.token).account() }
+        val e = assertThrows(ApiError::class.java) { Api(base, linked.token, key).account() }
         assertTrue(e.revoked)
     }
 }
