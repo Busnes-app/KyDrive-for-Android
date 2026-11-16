@@ -126,9 +126,10 @@ change the server must make goes in a separate `kydrive-server` PR.
   unsaved user work.
 - TLS only, against system CAs only. Never cleartext, never user-installed CAs, with no
   option to enable either (owner, 2026-11-15). Refuse redirects.
-  The one exception is the throwaway CA `scripts/screenshot-server.sh` makes per run,
-  trusted through `debug-overrides` only in the debuggable APK built with
-  `-PscreenshotCa`. `src/main` and every other build trust system CAs only.
+  Explicit `-PscreenshotCa` debug builds can also trust the per-run screenshot server CA
+  or the committed TLS-test CA via `debug-overrides`. The committed CA's key is public:
+  that APK is for isolated synthetic tests only, never real accounts. `src/main` and
+  every other build trust system CAs only.
 - Every HTTPS connection carries the certificate floor (`core/Tls.kt`, `DeviceTls.kt`): RSA
   keys of at least 2048 bits, elliptic-curve keys of at least 256, and a SHA-2 or stronger
   signature, over the chain `X509TrustManagerExtensions` validated — leaf, intermediates and
@@ -182,6 +183,7 @@ change the server must make goes in a separate `kydrive-server` PR.
   `-PscreenshotCa=app/src/test/resources/tls/ca.pem` and fails if the tests skipped.
   `scripts/tls-fixtures.sh` regenerates the throwaway certificates in `app/src/test/resources/tls`,
   which the device tests read as androidTest assets. No fixture may reach `src/main`.
+  The release-build CI job also inspects the actual APK for fixture key/certificate files.
 - `RealServerTest` runs the wire layer against a real `kydrive-server` when
   `KYDRIVE_SERVER_BIN` names a built binary, and is skipped otherwise. The `ci-real-server`
   job builds the pinned commit in `.github/workflows/ci.yml` and fails if the test skipped.

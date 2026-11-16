@@ -10,6 +10,8 @@ import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.kysecurity.drive.core.Api
+import org.kysecurity.drive.core.Tls
 import java.io.Closeable
 import java.io.IOException
 import java.net.InetAddress
@@ -47,7 +49,9 @@ class CertFloorDeviceTest {
 
     @Before
     fun theFixtureCaIsTrusted() {
-        val trusted = runCatching { platformTrust().checkServerTrusted(arrayOf(cert("strong"), cert("ca")), "ECDHE_ECDSA") }
+        // Missing/malformed assets are configuration failures, never a reason to skip.
+        val chain = arrayOf(cert("strong"), cert("ca"))
+        val trusted = runCatching { platformTrust().checkServerTrusted(chain, "ECDHE_ECDSA") }
         assumeTrue(
             "build with -PscreenshotCa=app/src/test/resources/tls/ca.pem to run the certificate-floor device tests",
             trusted.isSuccess,
@@ -59,13 +63,19 @@ class CertFloorDeviceTest {
         server?.close()
     }
 
-    private fun redeem(leaf: String, vararg issuers: String): String {
+    private fun redeem(leaf: String, vararg issuers: String, enforceFloor: Boolean = true): String {
         val running = FixtureServer(leaf, *issuers).also { server = it }
-        return driveApi(running.origin).redeem(CODE, "Ana's Pixel").token
+        // The baseline alone omits the floor. It still uses Android's default system/NSC
+        // trust and hostname checks, and proves the negative controls reach our policy.
+        val api = if (enforceFloor) driveApi(running.origin) else Api(running.origin, tls = Tls { })
+        return api.redeem(CODE, "Ana's Pixel").token
     }
 
-    private fun refused(leaf: String, vararg issuers: String) {
-        assertThrows(IOException::class.java) { redeem(leaf, *issuers) }
+    private fun refused(leaf: String, vararg issuers: String, byFloor: Boolean = true) {
+        val failure = assertThrows(IOException::class.java) { redeem(leaf, *issuers) }
+        val floorRefusal = generateSequence(failure as Throwable?) { it.cause }
+            .any { it.message.orEmpty().contains("KyDrive refuses") }
+        assertEquals(failure.stackTraceToString(), byFloor, floorRefusal)
         assertEquals(emptyList<String>(), server!!.requests)
     }
 
@@ -79,7 +89,15 @@ class CertFloorDeviceTest {
     fun anRsaKeyBelowTheFloorIsRefusedBeforeTheRequest() = refused("rsa2047")
 
     @Test
-    fun anEcKeyBelowTheFloorIsRefusedBeforeTheRequest() = refused("ec224")
+    fun thePlatformAcceptsTheFloorNegativeControls() {
+        // P-224 is covered by the pure policy test: the native TLS stack may not negotiate
+        // it at all. These controls must succeed without our floor, then fail because of it.
+        for ((leaf, issuers) in listOf("rsa2047" to emptyArray(), "sha1" to emptyArray(), "under-weak-int" to arrayOf("weak-int"))) {
+            assertEquals(leaf, "kyd_abc", redeem(leaf, *issuers, enforceFloor = false))
+            assertTrue(leaf, server!!.requests.isNotEmpty())
+            server!!.close()
+        }
+    }
 
     @Test
     fun aSha1SignatureIsRefusedBeforeTheRequest() = refused("sha1")
@@ -88,10 +106,10 @@ class CertFloorDeviceTest {
     fun aWeakIntermediateIsRefusedBeforeTheRequest() = refused("under-weak-int", "weak-int")
 
     @Test
-    fun aCertificateForAnotherNameStillFails() = refused("othername")
+    fun aCertificateForAnotherNameStillFails() = refused("othername", byFloor = false)
 
     @Test
-    fun anUntrustedAnchorStillFails() = refused("untrusted")
+    fun anUntrustedAnchorStillFails() = refused("untrusted", byFloor = false)
 
     /** An HTTPS server on loopback presenting one fixture chain, recording what it is asked. */
     private inner class FixtureServer(leaf: String, vararg issuers: String) : Closeable {

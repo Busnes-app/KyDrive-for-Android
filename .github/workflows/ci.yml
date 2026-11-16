@@ -106,6 +106,18 @@ jobs:
             echo "The release build contains proprietary Google code; F-Droid will refuse it." >&2
             exit 1
           fi
+      - name: no certificate test fixtures in release APK
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          apks = list(Path('app/build/outputs/apk/release').glob('*.apk'))
+          assert apks, 'no release APK found'
+          for apk in apks:
+              with ZipFile(apk) as archive:
+                  fixtures = [p for p in archive.namelist() if Path(p).suffix in {'.pem', '.key', '.crt', '.p12', '.jks'}]
+                  assert not fixtures, f'{apk} contains certificate/key fixtures: {fixtures}'
+          PY
       - name: dependency verification metadata is unchanged
         run: git diff --exit-code -- gradle/verification-metadata.xml
 
@@ -197,10 +209,12 @@ jobs:
       - name: certificate-floor tests ran
         run: |
           set -euo pipefail
-          report=$(find app/build/outputs/androidTest-results -name 'TEST-*.xml' | head -1)
+          report=$(find app/build/outputs/androidTest-results -name 'TEST-*.xml' -print -quit)
           test -n "$report"
-          grep -q 'skipped="0"' "$report"
-          ! grep -q 'tests="0"' "$report"
+          grep -q 'name="org.kysecurity.drive.CertFloorDeviceTest"' "$report"
+          grep -q 'tests="7"' "$report"
+          # The root skipped attribute omits assumption failures in Android's nested XML.
+          ! grep -Eq '<(skipped|failure|error)([[:space:]/>])' "$report"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

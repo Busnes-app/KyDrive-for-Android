@@ -76,6 +76,9 @@ their throwaway CA; their exact invocation and no-skip report checks are in
 `.github/workflows/ci.yml`. Regular builds trust only system CAs. Test keys/certificates
 must never enter a production APK.
 
+The fixture CA's private key is public in the repository. An APK explicitly built to
+trust it is for isolated synthetic tests only; never link a real account with that APK.
+
 ## Dependency verification
 
 Gradle verifies artifact SHA-256 values from `gradle/verification-metadata.xml`, and CI
