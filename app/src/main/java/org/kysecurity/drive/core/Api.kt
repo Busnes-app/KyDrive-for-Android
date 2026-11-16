@@ -23,13 +23,15 @@ data class Account(val userId: String, val user: String)
 
 /**
  * The KyDrive HTTP API. Blocking; call it off the main thread. [origin] comes from a parsed
- * [LinkUri], so it is a bare HTTPS origin. Redirects are refused rather than followed.
+ * [LinkUri], so it is a bare HTTPS origin. Redirects are refused rather than followed. With a
+ * [key], every request the [token] makes is signed ([RequestSigning]).
  */
-class Api(private val origin: String, private val token: String? = null) {
+class Api(private val origin: String, private val token: String? = null, private val key: DeviceKey? = null) {
 
-    /** Redeems a scanned phone code. A used or expired code is a 400. */
+    /** Redeems a scanned phone code, enrolling [key] when there is one. A used or expired code is a 400. */
     fun redeem(code: String, name: String): Linked {
-        val form = "grant=qr&code=${enc(code)}&name=${enc(name)}&platform=android"
+        var form = "grant=qr&code=${enc(code)}&name=${enc(name)}&platform=android"
+        key?.let { form += "&publicKey=" + enc(java.util.Base64.getEncoder().encodeToString(it.spki)) }
         val json = call("POST", "/api/devices/token", "application/x-www-form-urlencoded", form.toByteArray())
         val token = json.optString("token")
         if (!token.startsWith("kyd_")) throw IOException("KyDrive returned no device token")
@@ -50,16 +52,8 @@ class Api(private val origin: String, private val token: String? = null) {
         }
     }
 
-    internal fun call(method: String, path: String, type: String? = null, body: ByteArray? = null): JSONObject {
-        val conn = open(method, path)
-        if (body != null) {
-            conn.doOutput = true
-            conn.setRequestProperty("Content-Type", type)
-            conn.setFixedLengthStreamingMode(body.size)
-            conn.outputStream.use { it.write(body) }
-        }
-        return conn.answer { if (it.isEmpty()) JSONObject() else parse(it) }
-    }
+    internal fun call(method: String, path: String, type: String? = null, body: ByteArray? = null): JSONObject =
+        open(method, path, type?.let { mapOf("Content-Type" to it) }.orEmpty(), body).answer { if (it.isEmpty()) JSONObject() else parse(it) }
 
     internal fun call(method: String, path: String, json: JSONObject): JSONObject =
         call(method, path, "application/json", json.toString().toByteArray())
@@ -75,17 +69,13 @@ class Api(private val origin: String, private val token: String? = null) {
 
     /** One upload chunk: [len] bytes of [buf] from [off], at [range] ("bytes a-b/total"). */
     internal fun put(path: String, range: String, buf: ByteArray, off: Int, len: Int) {
-        val conn = open("PUT", path)
-        conn.doOutput = true
-        conn.setRequestProperty("Content-Type", "application/octet-stream")
-        conn.setRequestProperty("Content-Range", range)
-        conn.setFixedLengthStreamingMode(len)
-        conn.outputStream.use { it.write(buf, off, len) }
-        conn.answer { }
+        open("PUT", path, mapOf("Content-Type" to "application/octet-stream", "Content-Range" to range), buf, off, len).answer { }
     }
 
-    internal fun open(method: String, path: String): HttpURLConnection {
-        val conn = URI(origin + path).toURL().openConnection() as HttpURLConnection
+    /** Opens [path] with [headers], signed when there is a key, and sends [len] bytes of [body] from [off]. */
+    internal fun open(method: String, path: String, headers: Map<String, String> = emptyMap(), body: ByteArray? = null, off: Int = 0, len: Int = body?.size ?: 0): HttpURLConnection {
+        val url = URI(origin + path).toURL()
+        val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = method
         conn.instanceFollowRedirects = false
         conn.useCaches = false
@@ -93,6 +83,15 @@ class Api(private val origin: String, private val token: String? = null) {
         conn.readTimeout = 60_000
         conn.setRequestProperty("Accept", "application/json")
         token?.let { conn.setRequestProperty("Authorization", "Bearer $it") }
+        headers.forEach { (k, v) -> conn.setRequestProperty(k, v) }
+        if (token != null && key != null) {
+            RequestSigning.headers(key, origin, method, url.file, headers, body ?: ByteArray(0), off, len).forEach { (k, v) -> conn.setRequestProperty(k, v) }
+        }
+        if (body != null) {
+            conn.doOutput = true
+            conn.setFixedLengthStreamingMode(len)
+            conn.outputStream.use { it.write(body, off, len) }
+        }
         return conn
     }
 

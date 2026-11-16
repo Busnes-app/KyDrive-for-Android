@@ -112,6 +112,13 @@ change the server must make goes in a separate `kydrive-server` PR.
   confirm-a-number step.
 - The `kyd_` device token is encrypted under a non-exportable Android Keystore AES-GCM key,
   stored in `noBackupFilesDir`. It is never logged, put in a URL or shown.
+- Every token request is signed (owner, 2026-11-16): `DeviceSigningKey` makes a P-256
+  Keystore key per link (alias `kydrive-device-signing-v1-<uuid>`, saved in the session;
+  TEE, no user authentication, so background work signs) before the code is redeemed, and
+  `redeem` enrols it as `publicKey`. `core/Signing.kt` is `kydrive-request-v1` from
+  KyDrive-server `internal/api/devicesig.go`; `app/src/test/resources/device-signing-v1.json`
+  is a byte-for-byte copy of the server's golden vector. Headers a request sends go through
+  `Api.open(headers, body)` so they are signed; never set one on the connection afterwards.
 - `device_revoked` and Unlink always wipe: delete the Keystore keys first, then the cache,
   jobs and token. A wipe marker makes the wipe resume after a crash. The phone holds no
   unsaved user work.
