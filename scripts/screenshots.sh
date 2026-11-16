@@ -124,6 +124,9 @@ for form in phone tablet; do
     "$adb" -s "$serial" shell am start -W -n org.kysecurity.drive/.MainActivity --es screenshot_link "'$link'" > /dev/null
     shot confirm "This links the phone to"
     tap Link
+    # Linking offers the lock once; the flow turns it on later, from Settings.
+    shot offer "Anyone holding this phone"
+    tap "Not now"
     shot files "Budget 2026.xlsx"
     tap "Actions for Notes.txt"
     shot actions "Save to this phone"
