@@ -26,20 +26,20 @@ fun interface Pepper {
 }
 
 sealed interface Attempt {
-    data object Success : Attempt
+    object Success : Attempt
     data class Rejected(val waitMillis: Long) : Attempt
 
     /**
      * The right PIN, but the app locked or left the screen after it was entered. Still locked,
      * and not counted as a wrong PIN.
      */
-    data object Stale : Attempt
+    object Stale : Attempt
 
     /** Too many wrong PINs: everything is already erased. */
-    data object Wiped : Attempt
+    object Wiped : Attempt
 
     /** The verifier cannot be evaluated (Keystore trouble). Not a wrong PIN, so not counted. */
-    data object Unavailable : Attempt
+    object Unavailable : Attempt
 }
 
 /**
