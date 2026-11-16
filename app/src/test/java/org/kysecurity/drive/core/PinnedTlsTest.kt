@@ -14,7 +14,6 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -169,12 +168,12 @@ class PinnedTlsTest {
         val pins = MemoryPins(TlsPin(PIN_A, TlsPinTest.KEY, now() - 100))
         var unlinked = false
         val store = object : PinStore {
-            override fun current() = if (unlinked) null else pins.current()
+            override fun current() = if (unlinked) throw IOException("the session has ended") else pins.current()
             override fun replace(expected: TlsPin?, new: TlsPin) = !unlinked && pins.replace(expected, new)
         }
         onStatement = { unlinked = true }
         assertTrue(assertThrows(IOException::class.java) { api(store).account() }.isPinMismatch())
-        assertNull(store.current())
+        assertThrows(IOException::class.java) { store.current() }
         assertEquals(PIN_A, pins.current()!!.leaf)
         assertEquals(listOf("GET /api/devices/tls-pin auth=null signed=false"), seen.toList())
     }

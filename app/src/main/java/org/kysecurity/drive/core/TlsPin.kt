@@ -22,6 +22,7 @@ data class TlsPin(val leaf: String, val identityKey: String? = null, val stateme
 
 /** Where a session keeps its pin. [replace] is compare-and-swap: it writes only if [expected] is still stored. */
 interface PinStore {
+    /** Null only when nothing is pinned yet; throws when the session it belongs to has ended. */
     fun current(): TlsPin?
     fun replace(expected: TlsPin?, new: TlsPin): Boolean
 }

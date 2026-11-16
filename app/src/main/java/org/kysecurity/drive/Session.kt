@@ -10,6 +10,7 @@ import org.kysecurity.drive.core.PinStore
 import org.kysecurity.drive.core.TlsPin
 import org.kysecurity.drive.lock.Lock
 import java.io.File
+import java.io.IOException
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -80,7 +81,8 @@ class SessionStore(context: Context) {
      * stored with the expected pin, under the lock [wipe] takes, so an unlink is never undone.
      */
     fun pins(token: String): PinStore = object : PinStore {
-        override fun current() = load()?.takeIf { it.token == token }?.pin
+        // A wiped or replaced session sends nothing: null would mean "not pinned yet" and send the token unpinned.
+        override fun current() = (load()?.takeIf { it.token == token } ?: throw IOException("the session has ended")).pin
 
         override fun replace(expected: TlsPin?, new: TlsPin): Boolean = synchronized(LOCK) {
             val s = read()?.takeIf { it.token == token && it.pin == expected }
