@@ -332,6 +332,7 @@ class MainActivity : SecureActivity() {
         val s = session ?: return
         val p = stack.lastOrNull() ?: return
         val ws = p.workspace ?: return
+        val app = applicationContext
         for (uri in uris) {
             val (name, size) = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use {
                 if (!it.moveToFirst()) null else it.getString(0).orEmpty() to (if (it.isNull(1)) -1L else it.getLong(1))
@@ -341,10 +342,10 @@ class MainActivity : SecureActivity() {
                 continue
             }
             snack(getString(R.string.uploading, name))
-            val resolver = applicationContext.contentResolver
-            Work.run(this, s, getString(R.string.uploaded, name)) {
+            val resolver = app.contentResolver
+            Work.run(app, s, getString(R.string.uploaded, name)) {
                 val input = resolver.openInputStream(uri) ?: throw IOException("the picker's file is gone")
-                Drive(s.api(this@MainActivity)).upload(ws.id, p.folder, name, size, null, input)
+                Drive(s.api(app)).upload(ws.id, p.folder, name, size, null, input)
             }
         }
     }
@@ -358,13 +359,14 @@ class MainActivity : SecureActivity() {
     private fun save(f: FileItem, uri: Uri) {
         val s = session ?: return
         snack(getString(R.string.saving, f.name))
-        val resolver = applicationContext.contentResolver
-        Work.run(this, s, getString(R.string.saved, f.name)) {
+        val app = applicationContext
+        val resolver = app.contentResolver
+        Work.run(app, s, getString(R.string.saved, f.name)) {
             try {
                 val out = resolver.openOutputStream(uri, "wt") ?: throw IOException("the chosen place cannot be written")
-                out.use { Drive(s.api(this@MainActivity)).download(f, it) }
+                out.use { Drive(s.api(app)).download(f, it) }
             } catch (e: Exception) {
-                runCatching { DocumentsContract.deleteDocument(resolver, uri) }
+                kotlin.runCatching { DocumentsContract.deleteDocument(resolver, uri) }
                 throw e
             }
         }

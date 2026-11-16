@@ -154,6 +154,8 @@ change the server must make goes in a separate `kydrive-server` PR.
   ship it. No analytics and no crash SDK.
 - The wire layer is `org.kysecurity.drive.core`: no Android imports, so iOS can mirror it.
   It uses the platform's `HttpURLConnection` and `org.json`.
+- Transfer blocks submitted to process-owned `Work` capture the application context,
+  never an Activity or its views, so uploads and saves may outlive their screen.
 - The look and the Android conventions follow `KyPost-for-Android`: Busnes palettes, the
   adaptive shell with the rail on the right, Activity Embedding and app lock. The
   benchmark is Google Drive.
