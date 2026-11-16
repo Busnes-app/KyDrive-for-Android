@@ -30,6 +30,7 @@ import org.kysecurity.drive.core.Folder
 import org.kysecurity.drive.core.Item
 import org.kysecurity.drive.core.LinkUri
 import org.kysecurity.drive.core.Workspace
+import org.kysecurity.drive.lock.Lock
 import java.io.IOException
 
 class MainActivity : SecureActivity() {
@@ -421,10 +422,22 @@ class MainActivity : SecureActivity() {
                 if (next == null) return@onSuccess snack(getString(R.string.link_other_account))
                 setSession(next)
                 snack(getString(R.string.link_done, next.user))
+                offerLock()
                 load()
             }.onFailure { snack(linkFailure(it, link.host)) }
             render()
         }
+    }
+
+    /** Once, right after linking: the files are on this phone now, so offer to guard them. */
+    private fun offerLock() {
+        if (Lock.app.enabled) return
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.lock_offer_title)
+            .setMessage(R.string.lock_offer_body)
+            .setNegativeButton(R.string.lock_offer_later, null)
+            .setPositiveButton(R.string.lock_offer_set) { _, _ -> turnLockOn {} }
+            .show()
     }
 
     private fun linkFailure(e: Throwable, host: String): String = when {

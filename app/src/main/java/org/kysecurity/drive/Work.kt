@@ -66,3 +66,19 @@ fun privateText(context: Context, value: String): EditText = EditText(context).a
     isSingleLine = true
     setText(value)
 }
+
+/** A PIN field: digits, hidden, and kept out of the keyboard's learning like [privateText]. */
+fun privatePin(context: Context): EditText = EditText(context).apply {
+    inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+    imeOptions = EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING or EditorInfo.IME_ACTION_DONE
+    isSingleLine = true
+    filters = arrayOf(android.text.InputFilter.LengthFilter(org.kysecurity.drive.lock.PinPolicy.MAX_LENGTH))
+}
+
+/** The field's PIN as characters; the field is cleared so the text does not linger in it. */
+fun EditText.takePin(): CharArray {
+    val e = text
+    val pin = CharArray(e.length) { e[it] }
+    e.clear()
+    return pin
+}

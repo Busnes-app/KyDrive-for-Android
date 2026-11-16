@@ -124,6 +124,9 @@ for form in phone tablet; do
     "$adb" -s "$serial" shell am start -W -n org.kysecurity.drive/.MainActivity --es screenshot_link "'$link'" > /dev/null
     shot confirm "This links the phone to"
     tap Link
+    # Linking offers the lock once; the flow turns it on later, from Settings.
+    shot offer "Anyone holding this phone"
+    tap "Not now"
     shot files "Budget 2026.xlsx"
     tap "Actions for Notes.txt"
     shot actions "Save to this phone"
@@ -144,6 +147,23 @@ for form in phone tablet; do
     shot workspace "Shared plan.pdf"
     tap Settings
     shot settings "Unlink this phone"
+    # App lock: choose a PIN, see its settings, then a restart asks for it.
+    tap "Lock KyDrive with a PIN"
+    shot pin "8 to 12 digits"
+    tap "New PIN"
+    "$adb" -s "$serial" shell input text 73915062
+    tap "New PIN again"
+    "$adb" -s "$serial" shell input text 73915062
+    tap OK
+    shot lock "Lock after leaving the app"
+    "$adb" -s "$serial" shell am force-stop org.kysecurity.drive
+    "$adb" -s "$serial" shell am start -W -n org.kysecurity.drive/.MainActivity > /dev/null
+    shot unlock "KyDrive is locked"
+    tap PIN
+    "$adb" -s "$serial" shell input text 73915062
+    # Enter, not the button: on a landscape tablet the keyboard covers it.
+    key ENTER
+    shot unlocked "Budget 2026.xlsx"
   done
 
   "$adb" -s "$serial" emu kill > /dev/null || true

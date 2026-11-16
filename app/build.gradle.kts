@@ -26,6 +26,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // FLAG_SECURE is unconditional unless the debug type below overrides this.
         buildConfigField("boolean", "ALLOW_SCREENSHOTS", "false")
     }
@@ -82,6 +83,9 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.zxing.embedded)
+    androidTestImplementation("androidx.test:core:1.7.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
     testImplementation(libs.junit)
     testImplementation(libs.org.json)
     // Lint runs from its own classpath, which the root buildscript floors do not reach.

@@ -123,6 +123,14 @@ change the server must make goes in a separate `kydrive-server` PR.
 - `FLAG_SECURE` on every screen, except debug builds with `-PallowScreenshots=true`.
   `KeyboardPrivacy` on every text field. No `android.util.Log` in main sources.
   `allowBackup=false`, and the data-extraction rules exclude every domain.
+- The app lock gates the UI only; background work keeps the token. The PIN is 8–12 digits,
+  stored as PBKDF2 mixed with a non-exportable Keystore HMAC key, and every PIN check goes
+  through `AppLock.attempt` (delay ladder, erase after 30 wrong PINs by default). Turning
+  the lock off or weakening it asks for the PIN. Biometric unlock is strong-only and bound to
+  a key that a new enrolment invalidates. A PIN check, PIN setup or biometric prompt unlocks
+  only if the app is on screen and has not locked or left since `AppLock.entered()` was read
+  at submission; otherwise it is `Stale`. PIN setup completion is published by the process to every started protected activity, so recreating or destroying the submitting activity cannot leave its replacement outside the lock gate. Locking ends every file handed to another app, and
+  `OpenProvider` serves nothing while locked. A wipe removes the lock with everything else.
 - The default build has no Google Play Services and no proprietary SDKs, so F-Droid can
   ship it. No analytics and no crash SDK.
 - The wire layer is `org.kysecurity.drive.core`: no Android imports, so iOS can mirror it.
@@ -139,6 +147,7 @@ change the server must make goes in a separate `kydrive-server` PR.
 - Do not tag or cut releases.
 
 ## Verification
+- `ci-lock-recreation` runs `LockRecreationTest` on an Android emulator and proves stale setup gates the replacement activity after the original lifecycle coroutine is cancelled.
 - `./gradlew testDebugUnitTest lintDebug checkExportedComponentsDebug assembleRelease`
   is what CI runs. `SourceRulesTest` checks the rules above that a reviewer would
   otherwise have to remember: no logging, every activity extends `SecureActivity` (zxing's
@@ -166,4 +175,5 @@ change the server must make goes in a separate `kydrive-server` PR.
   PNGs as an artifact; attach them to the PR. Add each new screen to the script.
 
 ## Child DOX Index
+- `app/src/androidTest/` — device-only lock lifecycle regressions.
 - `docs/` — design and owner decisions (`DESIGN.md`).
