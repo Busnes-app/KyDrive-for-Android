@@ -3,6 +3,7 @@ name: screenshots
 # Captures every screen when a PR changes one; attach the artifact's PNGs to the PR.
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'app/src/main/**'
       - 'scripts/screenshots.sh'
@@ -19,6 +20,7 @@ permissions:
 
 jobs:
   capture:
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

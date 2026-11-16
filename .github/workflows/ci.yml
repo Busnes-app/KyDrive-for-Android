@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 permissions:
@@ -17,6 +18,7 @@ concurrency:
 jobs:
   unit:
     name: ci-unit
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -49,6 +51,7 @@ jobs:
   # throws at runtime, so the release variant is built on every PR.
   release-build:
     name: ci-release-build
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -81,6 +84,7 @@ jobs:
   # pin when the app starts using a newer server route.
   real-server:
     name: ci-real-server
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
