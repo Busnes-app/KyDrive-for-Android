@@ -143,7 +143,11 @@ change the server must make goes in a separate `kydrive-server` PR.
 - A new or bumped dependency means regenerating `gradle/verification-metadata.xml` with
   `--write-verification-metadata sha256` in its own commit. CI fails if it changes.
   Generate against an empty Gradle home (`-g <new dir>`) and the full CI task list: a warm
-  cache skips the BOMs and parent POMs that a CI runner downloads.
+  cache skips the BOMs and parent POMs that a CI runner downloads. Empty `<components>`
+  first: Gradle never prunes, and Scorecard reports every version left in the file.
+- Advisory floors for build tools are the `build-tool-floors` bundle in
+  `gradle/libs.versions.toml`. They apply to the root buildscript classpath and to
+  `androidLintTool`, which lint resolves on its own.
 - `scripts/screenshots.sh` captures every screen into `docs/screenshots/`, light and dark,
   phone and tablet, on its own AVDs. The `screenshots` workflow runs it on every PR that
   touches `app/src/main` and uploads the PNGs as an artifact; attach them to the PR. Add

@@ -1,7 +1,6 @@
 # Versions follow KyPost-for-Android, which resolves them on the same compileSdk.
-# Changing any of them means regenerating gradle/verification-metadata.xml in its own commit:
-#   ./gradlew --write-verification-metadata sha256 help
-# Never from CI: CI must fail on an unrecorded artifact, not record it.
+# Changing any of them means regenerating gradle/verification-metadata.xml in its own commit,
+# as AGENTS.md describes. Never from CI: CI must fail on an unrecorded artifact, not record it.
 
 [versions]
 agp = "9.5.1"
