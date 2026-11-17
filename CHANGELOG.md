@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1 — pending
+
+- Prepare application version `0.1.1` (from `0.1.0`) for the compatible dependency refresh. Rebuild or install the updated application; this version bump requires no additional data, account, key or configuration migration.
+
+- Refresh compatible Android and build-tool dependencies; no account, key or stored-data migration.
+
+
 ## 0.1.0 — unreleased
 
 - Project skeleton: Gradle build with dependency verification, CI, the Busnes light and
