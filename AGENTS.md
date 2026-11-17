@@ -194,7 +194,9 @@ change the server must make goes in a separate `kydrive-server` PR.
   TLS settings in the manifest and `res/xml`.
 - `CertFloorTest` and `TlsFloorTest` cover the floor on the JVM: the policy over each fixture
   chain, and a real HTTPS connection where a refused chain fails inside the handshake and the
-  server records no request line. `CertFloorDeviceTest` proves the key-strength floor through
+  server records no request line. `TlsFloorTest` also checks factory reuse for an unchanged
+  pin and separation when the pin changes or a credential-free rollover lookup starts.
+  `CertFloorDeviceTest` proves the key-strength floor through
   `driveApi`, including a strong-chain/wrong-pin refusal; SHA-1 refusal is attributed to
   Android, and P-224 retains policy-level coverage.
   `ci-tls-floor` runs the device suite on API 36 with

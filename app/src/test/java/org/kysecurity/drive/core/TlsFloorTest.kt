@@ -4,12 +4,16 @@ import com.sun.net.httpserver.HttpsConfigurator
 import com.sun.net.httpserver.HttpsServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 import java.net.InetSocketAddress
+import java.net.URI
+import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 
@@ -60,6 +64,33 @@ class TlsFloorTest {
 
     private fun Throwable.blamesTheFloor(): Boolean =
         generateSequence(this as Throwable?) { it.cause }.any { it.message.orEmpty().contains("KyDrive refuses") }
+
+    @Test
+    fun tlsSessionsReuseAFactoryOnlyWhileThePinStaysTheSame() {
+        val tls = floor("ca")
+        val conn = URI("https://localhost").toURL().openConnection() as HttpsURLConnection
+        val pinA = TlsPins.of(Fixtures.cert("strong"))
+        val pinB = TlsPins.of(Fixtures.cert("rsa2048"))
+        tls.secure(conn, pinA)
+        val factoryA = conn.sslSocketFactory
+        tls.secure(conn, pinA)
+        assertSame(factoryA, conn.sslSocketFactory)
+        tls.secure(conn, pinB)
+        val factoryB = conn.sslSocketFactory
+        assertNotSame(factoryA, factoryB)
+        tls.secure(conn, pinB)
+        assertSame(factoryB, conn.sslSocketFactory)
+        // The credential-free rollover lookup must also have its own TLS session cache.
+        tls.secure(conn, null)
+        val rolloverFactory = conn.sslSocketFactory
+        assertNotSame(factoryA, rolloverFactory)
+        assertNotSame(factoryB, rolloverFactory)
+        tls.secure(conn, null)
+        assertSame(rolloverFactory, conn.sslSocketFactory)
+        tls.secure(conn, pinA)
+        assertNotSame(rolloverFactory, conn.sslSocketFactory)
+        assertNotSame(factoryA, conn.sslSocketFactory)
+    }
 
     @Test
     fun aStrongCertificateIsAnswered() {

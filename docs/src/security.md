@@ -31,10 +31,12 @@ elliptic-curve keys of at least 256 bits, and SHA-2 or stronger verified certifi
 signatures across the validated chain. The self-signature of a trust anchor is not
 used as a security proof; the anchor's key strength is still checked.
 
-The current policy accepts measurable RSA and EC certificate keys and named SHA-2
-signature algorithms. Ed25519 keys and RSASSA-PSS certificate signatures are currently
-refused because this policy does not measure them; that refusal is not a claim that
-those algorithms are weak. Operators need a certificate chain the policy supports.
+The current policy accepts measurable RSA and EC certificate keys and signature
+algorithm names that identify a SHA-2 or SHA-3 digest. Ed25519 certificate keys are refused.
+An RSA-PSS signature is refused if Android reports only `RSASSA-PSS` without a digest
+in the algorithm name; behavior depends on the certificate provider's name. These
+compatibility limits do not classify those algorithms as weak. Operators need a
+certificate chain the policy supports.
 
 The linked session also pins the server certificate's public key. A QR link can supply
 that pin; otherwise it is learned from the successful linking exchange. Existing sessions
