@@ -72,6 +72,11 @@ android {
         )
     }
 
+    // One directory of certificate-floor fixtures (scripts/tls-fixtures.sh): the unit tests
+    // read it from the test classpath, the device tests from the test APK's assets. Nothing
+    // under src/main refers to it, so no fixture reaches a shipped APK.
+    sourceSets.getByName("androidTest").assets.directories.add("src/test/resources/tls")
+
     testOptions {
         unitTests.isIncludeAndroidResources = false
         unitTests.all {

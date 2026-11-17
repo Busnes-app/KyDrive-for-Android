@@ -10,9 +10,6 @@ import java.net.URI
 import java.net.URLEncoder
 import java.security.cert.X509Certificate
 import javax.net.ssl.HttpsURLConnection
-import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLSocketFactory
-import javax.net.ssl.X509ExtendedTrustManager
 
 /** A non-2xx answer. [code] is the server's `error` text, never shown verbatim to the user. */
 class ApiError(val status: Int, val code: String, val wipe: Boolean) : IOException("KyDrive answered $status") {
@@ -31,7 +28,8 @@ data class Account(val userId: String, val user: String)
  * [LinkUri], so it is a bare HTTPS origin. Redirects are refused rather than followed. With a
  * [key], every request the [token] makes is signed ([RequestSigning]).
  *
- * Every HTTPS connection checks [trust] (system CAs) and then the leaf in [pins]. With no pin
+ * Every HTTPS connection requires [tls], which checks platform trust, the certificate floor
+ * and then the leaf in [pins]. With no pin
  * yet, the leaf of the first 2xx answer is pinned (trust on first use). A wrong leaf triggers one
  * signed rollover ([TlsPins.accept]) and one retry; without the server's identity key it fails.
  */
@@ -40,7 +38,7 @@ class Api(
     private val token: String? = null,
     private val key: DeviceKey? = null,
     private val pins: PinStore = MemoryPins(),
-    private val trust: X509ExtendedTrustManager = system,
+    private val tls: Tls? = null,
     private val now: () -> Long = { System.currentTimeMillis() / 1000 },
 ) {
 
@@ -117,8 +115,8 @@ class Api(
     }
 
     /**
-     * After [failed] met another leaf: one credential-free fetch of the signed pin over system
-     * trust. True when the stored pin moved (here or by a concurrent call) and the request is
+     * After [failed] met another leaf: one credential-free fetch of the signed pin over platform
+     * trust and the certificate floor. True when the stored pin moved (here or by a concurrent call) and the request is
      * worth one retry. Serialized so one renewal costs one fetch.
      */
     private fun roll(failed: TlsPin): Boolean = synchronized(ROLL) { rollLocked(failed) }
@@ -140,12 +138,14 @@ class Api(
         return next != null && pins.replace(stored, next)
     }
 
-    /** A connection pinned to [pin] (null: system trust only). Without [credentials] it carries no token and no signature. */
+    /** A connection pinned to [pin] (null: platform trust and strength floor). Without [credentials] it carries no token and no signature. */
     private fun send(method: String, path: String, headers: Map<String, String>, body: ByteArray?, off: Int, len: Int, pin: String?, credentials: Boolean): HttpURLConnection {
         val url = URI(origin + path).toURL()
         val conn = url.openConnection() as HttpURLConnection
         try {
-            (conn as? HttpsURLConnection)?.sslSocketFactory = factory(trust, pin)
+            if (conn is HttpsURLConnection) {
+                checkNotNull(tls) { "an HTTPS Api was built without a certificate floor" }.secure(conn, pin)
+            }
             conn.requestMethod = method
             conn.instanceFollowRedirects = false
             conn.useCaches = false
@@ -182,19 +182,6 @@ class Api(
     companion object {
         private const val MAX_JSON = 8 shl 20
         private val ROLL = Any()
-        private val system: X509ExtendedTrustManager by lazy { TlsPins.systemTrust() }
-
-        private class Factory(val trust: X509ExtendedTrustManager, val pin: String?, val factory: SSLSocketFactory)
-
-        /** One context per pin, kept while it is current, so pooled connections and resumed sessions never cross pins. */
-        @Volatile private var last: Factory? = null
-
-        private fun factory(trust: X509ExtendedTrustManager, pin: String?): SSLSocketFactory {
-            last?.takeIf { it.trust === trust && it.pin == pin }?.let { return it.factory }
-            val context = SSLContext.getInstance("TLS").apply { init(null, arrayOf(PinningTrustManager(trust, pin)), null) }
-            return Factory(trust, pin, context.socketFactory).also { last = it }.factory
-        }
-
         private fun HttpURLConnection.leaf(): String? =
             (this as? HttpsURLConnection)?.serverCertificates?.firstOrNull()?.let { TlsPins.of(it as X509Certificate) }
 

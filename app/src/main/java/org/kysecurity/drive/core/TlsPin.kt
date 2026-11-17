@@ -3,15 +3,10 @@ package org.kysecurity.drive.core
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
 import org.json.JSONObject
-import java.net.Socket
-import java.security.KeyStore
-import java.security.MessageDigest
 import java.security.cert.CertificateException
+import java.security.MessageDigest
 import java.security.cert.X509Certificate
 import java.util.Base64
-import javax.net.ssl.SSLEngine
-import javax.net.ssl.TrustManagerFactory
-import javax.net.ssl.X509ExtendedTrustManager
 import kotlin.math.abs
 
 /**
@@ -95,50 +90,10 @@ object TlsPins {
     fun accept(stored: TlsPin, host: String, observed: String, statement: JSONObject, now: Long): TlsPin? {
         val key = stored.identityKey ?: return null
         val pin = statement.optString("pin")
-        val at = when (val v = statement.opt("issued_at")) {
-            is Int -> v.toLong()
-            is Long -> v
-            else -> return null
-        }
+        val issued = statement.opt("issued_at")
+        val at = if (issued is Int) issued.toLong() else if (issued is Long) issued else return null
         val ok = pin == observed && statement.optString("host") == host && abs(now - at) <= MAX_SKEW_SECONDS &&
             at > stored.statementIssuedAt && observed != stored.leaf && verify(key, host, pin, at, statement.optString("signature"))
         return if (ok) TlsPin(observed, key, at) else null
     }
-
-    /** The platform's trust manager: system CAs, as the network security config allows. */
-    fun systemTrust(): X509ExtendedTrustManager =
-        TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply { init(null as KeyStore?) }
-            .trustManagers.filterIsInstance<X509ExtendedTrustManager>().single()
-}
-
-/**
- * The platform check first, then the leaf's SPKI against [expected] (null: system trust only).
- * A wrong leaf fails the handshake, so no header or token is ever written to it.
- */
-// Lint's CustomX509TrustManager flags any implementation; this one only narrows the platform's.
-@Suppress("CustomX509TrustManager")
-internal class PinningTrustManager(private val platform: X509ExtendedTrustManager, private val expected: String?) : X509ExtendedTrustManager() {
-    private fun pin(chain: Array<X509Certificate>) {
-        if (expected != null && TlsPins.of(chain[0]) != expected) throw PinMismatch()
-    }
-
-    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String, socket: Socket) {
-        platform.checkServerTrusted(chain, authType, socket)
-        pin(chain)
-    }
-
-    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String, engine: SSLEngine) {
-        platform.checkServerTrusted(chain, authType, engine)
-        pin(chain)
-    }
-
-    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
-        platform.checkServerTrusted(chain, authType)
-        pin(chain)
-    }
-
-    override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) = throw CertificateException("not a server")
-    override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String, socket: Socket) = throw CertificateException("not a server")
-    override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String, engine: SSLEngine) = throw CertificateException("not a server")
-    override fun getAcceptedIssuers(): Array<X509Certificate> = platform.acceptedIssuers
 }

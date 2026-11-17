@@ -22,7 +22,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.kysecurity.drive.core.Api
 import org.kysecurity.drive.core.ApiError
 import org.kysecurity.drive.core.Drive
 import org.kysecurity.drive.core.FileItem
@@ -419,8 +418,8 @@ class MainActivity : SecureActivity() {
                     val key = DeviceSigningKey.create().also { made = it }
                     // The link's pin when it has one, else the leaf the redemption meets.
                     val pins = MemoryPins(link.pin?.let { TlsPin.first(it, System.currentTimeMillis() / 1000) })
-                    val linked = Api(link.origin, key = key, pins = pins).redeem(link.code, deviceName(this@MainActivity))
-                    val api = Api(link.origin, linked.token, key, pins)
+                    val linked = driveApi(link.origin, key = key, pins = pins).redeem(link.code, deviceName(this@MainActivity))
+                    val api = driveApi(link.origin, linked.token, key, pins)
                     val account = api.account()
                     if (account.userId != linked.userId) throw IOException("token answered for another account")
                     val pin = pins.current() ?: throw IOException("no TLS leaf to pin")

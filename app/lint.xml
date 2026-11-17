@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- FloorTrustManager is a custom trust manager that trusts strictly less than the platform:
+         every decision is the platform trust manager's, and the floor only refuses chains it
+         accepted. CustomX509TrustManager cannot see that, and TlsFloorTest proves it (an
+         untrusted anchor and a wrong hostname still fail). Any other custom trust manager in
+         this app must be reviewed, so the exemption names the one file. -->
+    <issue id="CustomX509TrustManager">
+        <ignore path="src/main/java/org/kysecurity/drive/core/Tls.kt" />
+    </issue>
+</lint>

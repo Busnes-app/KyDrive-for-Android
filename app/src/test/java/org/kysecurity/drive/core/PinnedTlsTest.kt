@@ -80,7 +80,7 @@ class PinnedTlsTest {
     @After
     fun stop() = server.stop(0)
 
-    private fun api(pins: PinStore) = Api(origin, "kyd_secret", SoftwareKey(), pins, trust)
+    private fun api(pins: PinStore) = Api(origin, "kyd_secret", SoftwareKey(), pins, tls)
 
     private fun now() = System.currentTimeMillis() / 1000
 
@@ -216,7 +216,7 @@ class PinnedTlsTest {
     @Test
     fun aLinkPinIsEnforcedOnTheRedemption() {
         serving = "b"
-        val e = assertThrows(IOException::class.java) { Api(origin, pins = MemoryPins(TlsPin(PIN_A)), trust = trust).redeem("c", "n") }
+        val e = assertThrows(IOException::class.java) { Api(origin, pins = MemoryPins(TlsPin(PIN_A)), tls = tls).redeem("c", "n") }
         assertTrue(e.isPinMismatch())
         assertEquals(emptyList<String>(), seen.toList())
     }
@@ -236,6 +236,11 @@ class PinnedTlsTest {
         val trust: X509ExtendedTrustManager = TrustManagerFactory.getInstance("PKIX").apply {
             init(KeyStore.getInstance("PKCS12").apply { load(null); setCertificateEntry("ca", caCert) })
         }.trustManagers.filterIsInstance<X509ExtendedTrustManager>().single()
+
+        val tls = floorTls(trust) { chain, authType ->
+            trust.checkServerTrusted(chain, authType)
+            chain.toList()
+        }
 
         fun ec(): KeyPair = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }.generateKeyPair()
 

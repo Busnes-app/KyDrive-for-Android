@@ -1,0 +1,22 @@
+[book]
+title = "KyDrive for Android Documentation"
+authors = ["Busnes.app"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "coal"
+git-repository-url = "https://github.com/Busnes-app/KyDrive-for-Android"
+edit-url-template = "https://github.com/Busnes-app/KyDrive-for-Android/edit/main/docs/{path}"
+site-url = "/"
+
+[output.html.search]
+enable = true
+
+[output.html.print]
+enable = true

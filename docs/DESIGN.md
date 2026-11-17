@@ -113,7 +113,7 @@ There is no sign-in-on-the-phone path. Linking needs the web app open on a secon
 
 | Threat | Defence |
 |---|---|
-| Network attacker | TLS only. Cleartext is off and only system CAs are trusted; there is no user-CA option (owner decision). The TLS floor (RSA ≥ 2048, EC ≥ 256, SHA-2) is the same as KyPost's `StrongTls` and the desktop's FIPS policy. Redirects are refused. On top of that the session pins the server's leaf (section 2.1). |
+| Network attacker | TLS only. Cleartext is off and only system CAs are trusted; there is no user-CA option (owner decision). `core/Tls.kt` and `DeviceTls.kt` enforce RSA ≥ 2048, EC ≥ 256 and SHA-2 verified signatures inside the handshake over the platform-validated chain. The final trust anchor's key is measured; its unused self-signature is exempt. Redirects are refused. On top of that the session pins the server's leaf (section 2.1). |
 | Lost or stolen phone, unlocked | App lock (PIN or strong biometric) after a 30 s grace period, using KyPost's `LockedActivity` and `LockoutPolicy`. The user revokes the phone from the web, and the next request wipes it. |
 | Lost phone, attacker reads storage (rooted, forensics) | The token and the cache are encrypted under Keystore keys that never leave the device. Unlinking deletes the keys first (crypto-shred), then the files. |
 | Another app on the phone | Exported components are limited to the launcher activity, the share target, the camera-backup settings entry, and the DocumentsProvider (`MANAGE_DOCUMENTS`, so only the system picker binds). A build gate checks the merged manifest against that allowlist, as KyPost's does. |

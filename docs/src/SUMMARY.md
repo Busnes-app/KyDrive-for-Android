@@ -1,0 +1,16 @@
+# Summary
+
+- [Introduction](introduction.md)
+- [Getting started](getting-started.md)
+  - [Link a phone](linking.md)
+- [Files and workspaces](files.md)
+  - [Uploads and downloads](transfers.md)
+- [Settings and app lock](settings.md)
+- [Sign-out, revocation and unlinking](unlinking.md)
+- [Troubleshooting](troubleshooting.md)
+- [Privacy and security](security.md)
+- [Architecture and API reference](architecture.md)
+- [Development and testing](development.md)
+- [Versions and releases](releases.md)
+- [Contributing](contributing.md)
+- [Licences](licences.md)

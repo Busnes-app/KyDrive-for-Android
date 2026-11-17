@@ -57,6 +57,24 @@ class SourceRulesTest {
     }
 
     @Test
+    fun onlyTheFactoryBuildsAnApi() {
+        // Every Api the app builds must carry the certificate floor, which driveApi is what
+        // supplies; a second construction site would be a connection without one.
+        val makers = sources.filter { Regex("""\bApi\(""").containsMatchIn(it.readText()) }.map { it.name }.sorted()
+        assertEquals(listOf("Api.kt", "DeviceTls.kt"), makers)
+        // And Api.open is the only place a connection is opened at all.
+        assertEquals(listOf("Api.kt"), sources.filter { it.readText().contains("openConnection(") }.map { it.name })
+    }
+
+    @Test
+    fun noTestCertificateCanShip() {
+        // The floor's fixtures are throwaway keys a debuggable APK may trust through
+        // debug-overrides. src/main is what a release build packages, so they stay out of it.
+        val keys = File("src/main").walkTopDown().filter { it.extension in setOf("pem", "key", "crt", "p12", "jks") }.toList()
+        assertEquals(emptyList<File>(), keys)
+    }
+
+    @Test
     fun manifestKeepsDataOnTheDevice() {
         for (attr in listOf(
             """android:allowBackup="false"""",
