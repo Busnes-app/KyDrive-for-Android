@@ -2,6 +2,8 @@
 
 ## 0.1.0 — unreleased
 
+- Refresh compatible Android and build-tool dependencies; no account, key or stored-data migration.
+
 - Project skeleton: Gradle build with dependency verification, CI, the Busnes light and
   dark theme with Space Grotesk, a Files and Shared shell (bottom bar on phones, rail on
   tablets) and Settings (mode, rail side, about).
