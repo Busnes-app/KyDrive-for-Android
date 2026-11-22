@@ -3,7 +3,7 @@
 # as AGENTS.md describes. Never from CI: CI must fail on an unrecorded artifact, not record it.
 
 [versions]
-agp = "9.5.1"
+agp = "9.5.2"
 kotlin = "2.4.21"
 coreKtx = "1.18.0"
 activityKtx = "1.13.0"
