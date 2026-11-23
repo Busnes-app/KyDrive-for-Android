@@ -106,6 +106,12 @@ Root owns the product contract, the build, CI and the policy documents beside th
 `internal/api` and `internal/drive` own every wire shape; this repo never invents one. A
 change the server must make goes in a separate `kydrive-server` PR.
 
+The existing primary Android builder is `copperfinch` (GPT-6.1 Sol, high reasoning,
+owner direction). Preserve that ownership and coordinate with any active writer before
+editing shared files. For photo-backup planning or readiness claims, read
+`docs/DESIGN.md` section 5.1: it owns the implementation inventory, acceptance gaps and
+unresolved product choices.
+
 ## Local Contracts
 - Linking is by QR code only (owner, 2026-11-15). The web app shows
   `kydrive://link?srv=<origin>&code=<code>`, optionally with `&pin=`. The code is single use, lasts 120 s and
@@ -179,6 +185,11 @@ change the server must make goes in a separate `kydrive-server` PR.
   benchmark is Google Drive.
 
 ## Work Guidance
+- Hosted priority 4 (owner, 2026-11-23) completes the existing app's planned M4 automatic
+  photo backup. Critical tenancy/isolation/reliability/security/startup/launch gates and
+  in-flight fixes come first; preserve frozen test/review inputs. This adds no Photos
+  product or duplicate builder. Scope exclusions and decision boundaries are recorded
+  in `docs/DESIGN.md` section 8; planning does not establish release or hosted readiness.
 - Gradle, emulators and instrumented tests run on the Major build host, never on the
   owner's workstation, each inside a memory-capped `systemd-run` scope.
 - Every PR description is a change brief. PRs carry light and dark screenshots of every

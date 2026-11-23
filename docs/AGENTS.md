@@ -4,6 +4,8 @@ Owns KyDrive Android's mdBook manual and the approved product design.
 # Ownership
 - `src/` and `book.toml` own the published manual; `src/SUMMARY.md` is its chapter index.
 - `DESIGN.md` owns the roadmap and owner decisions, not current user instructions.
+  Its section 5.1 owns the photo-backup inventory, remaining acceptance/release work and
+  open product decisions; update it from source before starting M4 or claiming readiness.
 - `screenshots/` contains generated device captures owned by the screenshot workflow.
 
 # Local Contracts

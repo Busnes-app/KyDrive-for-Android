@@ -1,6 +1,8 @@
 # KyDrive for Android: design
 
-Status: approved by the owner, 2026-11-15 (decisions in section 8).
+Status: design approved 2026-11-15; planning direction updated 2026-11-23 (section 8).
+Milestones describe intended behavior; section 5.1 distinguishes implementation from
+remaining acceptance work. Approval of this plan is not release or hosted qualification.
 
 KyDrive for Android is a native client for a self-hosted KyDrive server. People use it to
 browse, open, share and back up their files from a phone. It is not a sync client: the
@@ -8,9 +10,10 @@ desktop app (`kydrive-desktop`) mirrors folders both ways, and this app reads an
 on demand. iOS comes later, so the wire layer is kept small and free of Android imports,
 which makes it easy to port.
 
-The server's source code is the contract. Citations below refer to
+The server's source code is the contract. Original design citations below refer to
 `Busnes-app/kydrive-server` at `origin/master` 864c365 and `Busnes-app/kydrive-desktop` at
-`origin/main` 824eb0d.
+`origin/main` 824eb0d. They are historical design inputs, not current blockers; check the
+current server before changing a wire contract.
 
 ## 1. Linking
 
@@ -38,7 +41,7 @@ Revocation is `DELETE /api/devices/{id}?wipe=`. After that the token answers
 `401 {"error":"device_revoked","wipe":bool}` for 30 days. The app can unlink itself with
 `DELETE /api/devices/self`.
 
-### What blocks a phone today
+### Original phone-linking gaps (resolved by server #140)
 
 - `validPlatform` accepts only `windows|macos|linux` (`internal/drive/devices.go:249`).
 - The redirect must be `http://127.0.0.1:<port>` or `http://[::1]:<port>`
@@ -48,7 +51,7 @@ Revocation is `DELETE /api/devices/{id}?wipe=`. After that the token answers
 - There is no cross-device (QR) path. A device-code design (RFC 8628) was considered and
   dropped (`docs/desktop-sync-options.md:644`).
 
-### Proposal: link by QR code
+### Approved and implemented: link by QR code
 
 The phone gets the same kind of `kyd_` device token as a computer. That token is listed
 and revoked under the web app's device settings, next to the computers.
@@ -79,7 +82,7 @@ The owner accepted this risk; there is no confirm-a-number step.
 There is no sign-in-on-the-phone path. Linking needs the web app open on a second screen
 (owner decision).
 
-**Server PR (separate, `kydrive-server`):**
+**Server changes (landed separately in `kydrive-server` #140):**
 
 - Add `android` and `ios` to `validPlatform`, for QR pairing only. The loopback approve
   flow stays computer-only.
@@ -261,7 +264,7 @@ server. Reload?". Nothing is merged and nothing is overwritten.
       is a small web PR on the server.
   - Share-out of a single file goes through the DocumentsProvider URI.
 - **M4, photo and camera backup (its own PR):**
-  - Opt-in. Unmetered networks by default; charging is optional. Uses WorkManager.
+  - Opt-in. Wi-Fi only and unmetered by default; charging is optional. Uses WorkManager.
   - It reads MediaStore since a saved watermark and respects Android 14 partial photo
     access.
   - Files go to `Camera backup/<device>/YYYY/MM` in a workspace the user chooses.
@@ -298,6 +301,79 @@ Settings, which has these sections:
 - **Security:** app lock and grace period.
 - **Backup** (M4).
 - **About.**
+
+### 5.1 Photo-backup inventory and remaining gates (2026-11-23)
+
+**Owner and order.** `copperfinch` remains the existing primary Android builder, using
+GPT-6.1 Sol with high reasoning. Hosted priority 4 completes M4 in this app. Critical
+tenancy, isolation, reliability, security, startup and launch work, including in-flight
+fixes, stays first. Preserve frozen verification heads and current ownership. Retain the
+M2 browse/DocumentsProvider and M3 share prerequisites before the separate M4 PR; M5
+offline copies remains its own milestone. This relay authorizes plan maintenance, not
+implementation, deployment or removal of a gate.
+
+**Inventory basis.** Source inspection of Android `main` at
+`60e755b9febb740cc0f96e96c85b5d5ff13da68d`; no new runtime qualification is claimed.
+
+| Area | Implemented evidence | Remaining work |
+|---|---|---|
+| Browse and manual transfer | `MainActivity.kt`, `core/Drive.kt`: personal/shared browsing, open through `OpenProvider`, SAF upload/save, folders, rename, trash/restore | Finish remaining M2 move, versions, search, previews/camera capture and DocumentsProvider/encrypted cache; finish M3 share-in and guest-link handoff. Opening in another app is not an in-app preview or photo gallery. |
+| Automatic discovery and permission | Manifest and Settings have no media-library permission flow or backup control; camera scanning is for linking | M4 opt-in settings, MediaStore scan/watermark, full/partial/denied/revoked access and changed selections. QR camera access grants no media-library access. |
+| Scheduling and persistence | `Work.kt` is a process-owned coroutine scope; the version catalog has no WorkManager dependency | WorkManager scheduling, durable account-bound progress and retry, Android background/foreground-transfer requirements, network/charging constraints, and visible pending/error/last-success state. Process lifetime is not a durable queue. |
+| Upload recovery and duplicates | `Drive.upload` creates a session, sends 8 MiB chunks, queries accepted offset on failure and completes it; session ID/offset live only in memory | Persist/reconcile an upload across process death/reboot, expired sessions and ambiguous completion; apply planned SHA-256 duplicate detection without overwriting a different file. |
+| Security and lifecycle | `Session.kt`, `DeviceSigningKey.kt`, `DeviceTls.kt` and `core/Api.kt`: sealed session, signed requests, system trust plus leaf pin/rollover; app lock gates UI | Route every worker through the same session/API boundary. Prove unlink, revocation and erase stop workers and wipe backup state without resurrecting an old account. UI locking continues to allow authorized background work. |
+| Delivery | Existing CI covers wire/security/lifecycle behavior, not automatic backup; README/manual still mark backup unavailable | No M4 permission, scheduling, restart/resume or hardware acceptance evidence exists. `app/build.gradle.kts` is 0.1.1/code 2 while README and release manual still say 0.1.0/code 1; reconcile release documentation before publication. |
+
+Paths in the table are under `app/src/main/java/org/kysecurity/drive/` unless qualified;
+the manifest is `app/src/main/AndroidManifest.xml`. See `docs/src/transfers.md` for the
+current process-lifetime limit and `docs/src/releases.md` for release authorization.
+
+**Acceptance work still required, after existing gates:**
+
+- Demonstrate opt-in/off, Wi-Fi-only and unmetered defaults, optional charging, restart
+  and reboot scheduling, offline retry, Doze/battery restrictions and truthful status.
+  Do not promise immediate uploads when Android defers work or after force-stop.
+- Exercise permission denial, Android 14+ partial access, selection changes and access
+  revocation on supported Android versions. Show exactly which media can be backed up;
+  a partial grant must never be reported as complete-library coverage.
+- Test interrupted chunks, process death, server-session expiry, server completion with
+  a lost response, duplicate content, same-name/different-content files, quota exhaustion,
+  removed destinations and lost workspace permission. Advance durable progress only
+  after confirmed completion; keep originals on the phone in every case.
+- Bind work/progress to the existing linked account and destination. Prove queued/running
+  work cannot cross unlink/relink or tenant/workspace boundaries. Preserve the per-device
+  credential scope, request signing, TLS floor, pin rollover and fail-closed behavior;
+  any server change belongs to the current server owner in a separate PR.
+- Protect persisted backup metadata under the existing confidentiality/wipe contract;
+  do not stage plaintext copies, log names/tokens or widen device-token privileges.
+  Ordinary Drive uploads are server-readable. Photo backup does not acquire vault E2EE,
+  editor confidentiality or independent disaster-recovery guarantees by association.
+- Add automated M4 tests and real-server/device acceptance, then pass full required
+  build/lint/export, integration, lock/TLS, static/security review and interface-approval
+  gates on the actual feature head. Run Gradle/device work on Major under the existing
+  lock, memory cap and keep-awake rules; isolate test servers from production push relays.
+  Preserve F-Droid compatibility and capture each new screen light/dark, phone/tablet.
+- Update manual, changelog and permission/privacy explanations with verified behavior.
+  Before publication, retain owner release authorization, aligned version metadata,
+  approved signing/distribution and production-APK exclusion of test exceptions. M4
+  completion does not by itself qualify the hosted suite or authorize a tag/release.
+
+**Distinct product choices remain unselected.** Bring these to the owner before choosing
+their contracts; they do not block this planning-only update:
+
+1. Media coverage: existing library versus new captures on first enable; photos alone
+   versus videos, screenshots or other albums; how selected-library expansion/backfill
+   affects the watermark. The approved partial-access requirement stays in force.
+2. Destination visibility: retain the user-chosen workspace and planned
+   `Camera backup/<device>/YYYY/MM` layout, but decide eligibility/defaults and explain
+   shared-workspace audience and offboarding. Do not silently select a shared destination
+   or treat backup as a request for vault encryption.
+3. Duplicate/conflict semantics: SHA-256 skipping is planned; decide its destination
+   scope, treatment of renamed/edited media and safe naming for different bytes with the
+   same name. Never infer overwrite, phone cleanup or two-way deletion.
+4. Photo presentation: whether a dedicated photo view, timeline or albums is wanted in
+   Drive beyond file browsing. Competitor evidence alone authorizes none of these and
+   creates no separate Photos product.
 
 ## 6. Build, test, ship
 
@@ -357,3 +433,16 @@ Settings, which has these sections:
 5. (2026-11-16) The TLS leaf is pinned on top of system trust, and renewals roll over through
    a statement signed by the server's identity key, so a renewal never forces a re-link
    (section 2.1).
+6. (2026-11-23, board relay 7766) Zentri direction is an approved planning constraint:
+   complete already-planned automatic photo backup as hosted priority 4 in this existing
+   Android app, after current critical gates and in-flight fixes. Preserve ownership,
+   permissions, background-transfer, signing, pinning and confidentiality contracts;
+   section 5.1 records the inventory and choices still requiring a product decision.
+   No separate Photos product or duplicate builder is authorized. No first-party
+   password manager, password-manager builder or task is in scope; compatibility with
+   existing managers is sufficient and a new integration is optional. VPN and AI remain
+   optional, with no new work requested. Suite authority is the workspace root
+   `/home/yoshi/git/busnes.app/AGENTS.md` User Preferences; first-party research at
+   `/home/yoshi/git/busnes.app/zentrimail-site/docs/research/competitor-product-gaps-2026-11-23.md`
+   supplies evidence, not readiness or roadmap authority, and its password-manager
+   recommendation is superseded by this owner direction.
