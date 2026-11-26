@@ -13,14 +13,12 @@ installed Gradle.
 - A built KyDrive server for integration tests; CI builds a pinned public commit.
 - mdBook 0.5.4 and Python 3 to build and check this manual.
 
-Agent Android builds and emulator work run on the Major build host, each in a
-memory-capped `systemd-run` scope. Reuse the toolchain's normal caches. Do not run Gradle
-on the owner's workstation or switch test instances onto production push relays.
-Set `PUSH_RELAY_URL=` and `APNS_RELAY_URL=` for throwaway instances.
+For throwaway test server instances, clear `PUSH_RELAY_URL=` and `APNS_RELAY_URL=` so
+test instances never communicate with production push relays.
 
 ## Build and install
 
-From the repository root on the build host:
+From the repository root:
 
 ```sh
 ./gradlew assembleDebug
@@ -28,7 +26,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 The application ID is `org.kysecurity.drive`. Android displays the name **KyDrive**.
-The debug APK uses the build host's debug signing key. A production release signing
+The debug APK uses your local debug signing key. A production release signing
 and distribution process has not been published; `assembleRelease` currently builds
 an unsigned APK to exercise R8 and resource shrinking.
 

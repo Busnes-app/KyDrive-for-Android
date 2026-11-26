@@ -14,8 +14,8 @@ The Android Settings → About screen shows the display version.
 
 Before publishing a user release:
 
-1. Obtain the owner's release authorization. Agent badge or documentation work does
-   not authorize a tag, release or store submission.
+1. Obtain maintainer release authorization. Documentation or badge updates alone do not
+   authorize a tag, release or store submission.
 2. Assign a unique version name, increase Android's version code, and record the exact
    source commit. Keep release identifiers retrievable from version control.
 3. Promote the changelog into dated human-readable release notes. Explain meaningful
@@ -25,7 +25,7 @@ Before publishing a user release:
 5. Pass full build/test/lint/exported-component checks, integration/device tests, static
    and dynamic analysis, and resolve confirmed security findings before release.
 6. Verify production configuration excludes test CAs, fixture keys and screenshot
-   exceptions; use an owner-approved signing/distribution process.
+   exceptions; use an approved signing and distribution process.
 
 Installing an APK signed with another key is not an ordinary update. Document channel
 or signing-key migrations before release, including whether uninstall/relink is needed

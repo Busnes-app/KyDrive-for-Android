@@ -23,8 +23,8 @@ and [security policy](SECURITY.md) before contributing or reporting a vulnerabil
 
 ## Documentation
 
-The manual uses mdBook, the same chapter-based format as KyPost's documentation, with
-navigation, search and a print view. Read its Markdown chapters here or build the book.
+The manual is built with mdBook and includes chapter navigation, search and a print view.
+Read its Markdown chapters here or build the book locally.
 
 - [Getting started](docs/src/getting-started.md) and [linking a phone](docs/src/linking.md)
 - [Files and workspaces](docs/src/files.md), [uploads and downloads](docs/src/transfers.md)
@@ -48,8 +48,7 @@ generated HTML is not committed. This builds documentation without running Andro
 ```
 
 Needs JDK 25 and the Android SDK (API 36.1); the app runs on Android 12 (API 31) or newer.
-The Gradle wrapper and dependency checksums are committed. Android builds and emulators
-for agent work run on the Major build host in a memory-capped systemd scope.
+The Gradle wrapper and dependency checksums are committed.
 
 CI also runs the wire tests against a pinned real KyDrive server, a bounded Jazzer fuzz
 test of QR input, and Android instrumented tests. To run the integration tests locally,

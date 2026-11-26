@@ -45,8 +45,8 @@ Revocation is `DELETE /api/devices/{id}?wipe=`. After that the token answers
   (`devices.go:270`).
 - The web copy says "Link a computer" and "Computers", and the 20-device cap is worded
   for computers.
-- There is no cross-device (QR) path. A device-code design (RFC 8628) was considered and
-  dropped (`docs/desktop-sync-options.md:644`).
+- There is no cross-device (QR) path. A device-code design (RFC 8628) was considered
+  during desktop sync design and dropped.
 
 ### Proposal: link by QR code
 
@@ -326,11 +326,10 @@ Settings, which has these sections:
 - **CI on PRs:** wrapper validation, unit tests, lint, a release build with R8, and
   `check-no-binaries`. Actions are pinned by SHA. CodeQL and Scorecard run as in the
   sibling repos.
-- **Screenshots:** a script run on Major (rooted emulator, debug build with
-  `-PallowScreenshots=true`, a throwaway server) captures every screen in light and dark,
-  on a phone and a tablet. The images live in `docs/screenshots/` and go into each PR.
-- **Builds** run on Major only, under `flock` and a 6 GB `systemd-run` scope. No releases
-  and no tags.
+- **Screenshots:** `scripts/screenshots.sh` (rooted emulator, debug build with
+  `-PallowScreenshots=true`, and a throwaway server) captures every screen in light and dark,
+  on a phone and a tablet.
+- **Releases:** pre-release only; no published release tags yet.
 
 ## 7. Out of scope
 
